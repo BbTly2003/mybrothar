@@ -46,16 +46,16 @@ interface ServerOutcomeBody {
 function PotChips({ pot }: { pot: number }) {
   return (
     <div className="flex flex-col items-center gap-1" aria-label={`Pozo: ${pot} tokens`}>
-      <div className="relative h-9 w-9" aria-hidden>
-        <span className="absolute inset-x-1 bottom-0 h-7 rounded-full bg-red-500 shadow-md" />
-        <span className="absolute inset-x-0.5 bottom-1 h-7 rounded-full border-2 border-dashed border-white/60 bg-amber-500 shadow-md" />
-        <span className="absolute inset-x-0 bottom-2 h-7 rounded-full border-2 border-dashed border-white/70 bg-amber-400 shadow-lg" />
-        <Coins className="absolute inset-x-0 bottom-2 m-auto h-4 w-4 text-amber-900/70" />
+      {/* Fichas de casino apiladas: base roja, centro ámbar, tope dorado */}
+      <div className="relative h-8 w-11" aria-hidden>
+        <span className="absolute inset-x-0 bottom-0 h-6 rounded-full border-2 border-white/70 bg-red-500 shadow-md" />
+        <span className="absolute inset-x-0 bottom-1.5 h-6 rounded-full border-2 border-white/75 bg-rose-500 shadow-md" />
+        <span className="absolute inset-x-0 bottom-3 h-6 rounded-full border-[3px] border-dashed border-white/90 bg-amber-400 shadow-lg" />
       </div>
-      <span className="rounded-full bg-black/45 px-2.5 py-0.5 text-xs font-black text-amber-300 backdrop-blur-sm">
+      <span className="rounded-full bg-black/50 px-2.5 py-0.5 text-xs font-black text-amber-300 backdrop-blur-sm">
         {pot} 🪙
       </span>
-      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/50" aria-hidden>
+      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/55" aria-hidden>
         pozo
       </span>
     </div>
@@ -475,7 +475,7 @@ export default function DominoPage() {
               </div>
 
               {/* Mesa estilo Plato */}
-              <div className="plato-table relative select-none rounded-[2rem] border-[6px] border-[#0e2a1d] p-[6px] sm:rounded-[2.75rem] sm:border-8 sm:p-2">
+              <div className="plato-table relative select-none rounded-[2rem] border-[6px] border-emerald-800 p-[6px] sm:rounded-[2.75rem] sm:border-8 sm:p-2">
                 <div className="plato-felt relative min-h-[430px] overflow-hidden rounded-[1.5rem] sm:min-h-[460px] sm:rounded-[2rem]">
                   {/* Asiento superior: Lola */}
                   <Seat

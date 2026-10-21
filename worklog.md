@@ -89,3 +89,22 @@ Stage Summary:
 - Sin cambios de reglas ni de APIs: el rediseño es solo presentación; motor, reducer y endpoints intactos.
 - Protegido el join contra doble click (throttle 800ms) además del guard concurrente existente.
 - BD en estado limpio para el usuario: 1000 tokens al entrar.
+
+---
+Task ID: 5
+Agent: Z.ai Code (main agent)
+Task: Arreglar bugs reportados por el usuario ("la mesa sigue igual, bug igual que las fichas")
+
+Work Log:
+- Diagnóstico con agent-browser + inspección DOM: la ficha vertical renderizaba sus dos mitades LADO A LADO (flex row) en vez de apiladas → los pips quedaban amontonados en una franja central cruzando el divisor (bug principal de "las fichas").
+- domino-tile.tsx reescrito: vertical = flex-col (mitades flex-1 apiladas + divisor horizontal w-[58%]), horizontal = flex-row (mitades flex-1 + divisor vertical h-[58%]); eliminado el apagado opacity-60+saturate-0.7 que hacía las fichas GRISACES sobre fondo oscuro (ahora brightness-0.97 sutil); dorso rediseñado (punto esmeralda central en vez de óvalo); fichas jugables llevan aro esmeralda permanente (no solo hover); pips bg-zinc-900 para máximo contraste.
+- page.tsx: PotChips rehecho — pila limpia de 3 fichas de casino (rojo/rosa/ámbar con anillos blancos) en vez de la mancha amarilla.
+- globals.css: .plato-table ahora es aro esmeralda brillante tipo juguete (gradiente #34d399→#059669, brillo interior superior) en lugar de madera oscura realista; .plato-felt más vivo (#3ddc84→#1f9e55).
+- Bordes #0e2a1d → border-emerald-800 en la mesa principal y en MiniTable del lobby.
+- Verificación E2E con agent-browser (desktop 1280×800 y móvil 375×812): partida completa en Mesa Novato — apertura obligatoria [6|6] en cruz, bots juegan fichas reales por ambos lados, [6|4] horizontal con 6 rotado (2 filas × 3 pips) correcto, diálogo ¿Dónde colocas la ficha? con extremos 1/3, pase sin jugada disponible con botón ⏭, fin por mano vacía de Lola con diálogo de resultado, "Jugar otra vez" (nueva partida con descuento correcto), abandono con AlertDialog; 0 errores de consola/página.
+- BD reseteada a pristine: jugador "default" con 1000 tokens, 0 partidas, historial vacío.
+
+Stage Summary:
+- BUG RAÍZ de las fichas corregido: las mitades ahora se apilan correctamente (6 = 2 columnas × 3 filas en vertical, 2 filas × 3 columnas en horizontal); las fichas son BLANCAS nítidas siempre (sin aspecto gris/muerto) y las jugables destacan con aro esmeralda.
+- La mesa ya no parece realista: aro esmeralda brillante estilo juguete + fieltro verde vivo, pozo como pila de fichas de casino, pilas de bots como montoncitos blancos con punto verde.
+- Motor, reducer y APIs intactos (solo presentación). BD en estado limpio para el usuario.

@@ -52,7 +52,7 @@ function Pips({ value, dot, horizontal = false }: PipsProps) {
     : (PIP_POSITIONS[value] ?? [])
 
   return (
-    <div className="grid h-full w-full grid-cols-3 grid-rows-3 place-items-center p-[2px]" aria-hidden>
+    <div className="grid h-full w-full grid-cols-3 grid-rows-3 place-items-center" aria-hidden>
       {Array.from({ length: 9 }).map((_, index) => {
         const row = Math.floor(index / 3)
         const col = index % 3
@@ -62,7 +62,7 @@ function Pips({ value, dot, horizontal = false }: PipsProps) {
             key={index}
             className={cn(
               'rounded-full',
-              on ? cn('bg-zinc-800 shadow-[inset_0_-1px_1px_rgba(0,0,0,0.55)]', dot) : 'bg-transparent',
+              on ? cn('bg-zinc-900 shadow-[inset_0_-1px_1px_rgba(0,0,0,0.55)]', dot) : 'bg-transparent',
             )}
           />
         )
@@ -84,7 +84,7 @@ const TILE_SIZES = {
   },
   lg: {
     vertical: 'h-24 w-12 rounded-lg sm:h-28 sm:w-14',
-    horizontal: 'h-12 w-24 rounded-lg sm:h-28 sm:w-14',
+    horizontal: 'h-12 w-24 rounded-lg sm:h-14 sm:w-28',
     dot: 'h-1.5 w-1.5',
   },
 } as const
@@ -106,7 +106,8 @@ export interface DominoTileProps {
 
 /**
  * Ficha de dominó estilo Plato: blanca, esquinas redondeadas y puntos limpios.
- * En horizontal (sobre la mesa) las mitades van lado a lado; el doble se coloca en cruz.
+ * Vertical = mitades apiladas (flex-col) · Horizontal = mitades lado a lado (flex-row).
+ * El doble se coloca en cruz (vertical sobre la cadena).
  */
 export const DominoTile = memo(function DominoTile({
   top,
@@ -134,44 +135,52 @@ export const DominoTile = memo(function DominoTile({
       disabled={!interactive}
       aria-label={ariaLabel}
       className={cn(
-        'relative flex shrink-0 select-none items-center justify-center border border-black/15 p-0 transition-all duration-150',
+        'relative flex shrink-0 select-none items-center justify-center border border-black/20 p-0 transition-all duration-150',
         box,
         faceDown
-          ? 'bg-gradient-to-b from-stone-100 to-stone-300 shadow-[0_2px_5px_rgba(0,0,0,0.35)]'
-          : 'bg-gradient-to-b from-white via-white to-stone-200 text-zinc-800 shadow-[0_2px_5px_rgba(0,0,0,0.35),0_10px_18px_rgba(0,0,0,0.18)]',
+          ? 'bg-gradient-to-b from-white to-stone-200 shadow-[0_2px_4px_rgba(0,0,0,0.4)]'
+          : 'bg-gradient-to-b from-white via-white to-stone-100 text-zinc-900 shadow-[0_3px_6px_rgba(0,0,0,0.35),0_10px_18px_rgba(0,0,0,0.22)]',
         interactive &&
-          'cursor-pointer hover:-translate-y-1.5 hover:shadow-[0_0_0_2px_rgba(52,211,153,0.95),0_10px_18px_rgba(0,0,0,0.25)] focus-visible:shadow-[0_0_0_2px_rgba(52,211,153,0.95)] focus-visible:outline-none',
+          'cursor-pointer shadow-[0_0_0_2px_rgba(16,185,129,0.75),0_6px_14px_rgba(0,0,0,0.3)] hover:-translate-y-1.5 hover:shadow-[0_0_0_2px_rgba(52,211,153,0.95),0_12px_20px_rgba(0,0,0,0.3)] focus-visible:shadow-[0_0_0_2px_rgba(52,211,153,0.95)] focus-visible:outline-none',
         !interactive && 'cursor-default',
-        disabled && !faceDown && 'opacity-60 saturate-[0.7]',
-        highlight && 'shadow-[0_0_0_3px_#fbbf24,0_2px_5px_rgba(0,0,0,0.35)]',
+        disabled && !faceDown && 'brightness-[0.97]',
+        highlight && 'shadow-[0_0_0_3px_#fbbf24,0_3px_6px_rgba(0,0,0,0.35)]',
         className,
       )}
     >
       {faceDown ? (
         <span
-          className="m-auto h-1/2 w-1/2 rounded-full border-2 border-emerald-900/25 bg-emerald-700/10"
+          className="h-2 w-2 shrink-0 rounded-full bg-emerald-700/70 shadow-[inset_0_1px_2px_rgba(0,0,0,0.35)]"
           aria-hidden
         />
-      ) : orientation === 'horizontal' ? (
-        <>
-          <div className="h-full w-[42%]">
-            <Pips value={top} dot={dot} horizontal />
-          </div>
-          <div className="h-[72%] w-px shrink-0 bg-zinc-300" aria-hidden />
-          <div className="h-full w-[42%]">
-            <Pips value={bottom} dot={dot} horizontal />
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="h-[42%] w-full">
+      ) : orientation === 'vertical' ? (
+        // Mitades apiladas: arriba | línea divisoria | abajo
+        <span className="flex h-full w-full flex-col items-stretch">
+          <span className="min-h-0 w-full flex-1">
             <Pips value={top} dot={dot} />
-          </div>
-          <div className="h-px w-[72%] shrink-0 bg-zinc-300" aria-hidden />
-          <div className="h-[42%] w-full">
+          </span>
+          <span
+            className="h-[2px] w-[58%] shrink-0 self-center rounded-full bg-stone-300"
+            aria-hidden
+          />
+          <span className="min-h-0 w-full flex-1">
             <Pips value={bottom} dot={dot} />
-          </div>
-        </>
+          </span>
+        </span>
+      ) : (
+        // Mitades lado a lado: izquierda | línea divisoria | derecha
+        <span className="flex h-full w-full flex-row items-stretch">
+          <span className="h-full min-w-0 flex-1">
+            <Pips value={top} dot={dot} horizontal />
+          </span>
+          <span
+            className="w-[2px] h-[58%] shrink-0 self-center rounded-full bg-stone-300"
+            aria-hidden
+          />
+          <span className="h-full min-w-0 flex-1">
+            <Pips value={bottom} dot={dot} horizontal />
+          </span>
+        </span>
       )}
     </button>
   )

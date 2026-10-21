@@ -59,7 +59,7 @@ function formatDate(iso: string): string {
 function MiniTable({ stake }: { stake: Stake }) {
   return (
     <div
-      className="plato-felt relative mx-auto mb-4 mt-1 h-24 w-full max-w-[190px] rounded-2xl border-4 border-[#0e2a1d] shadow-[0_10px_20px_rgba(0,0,0,0.35)]"
+      className="plato-felt relative mx-auto mb-4 mt-1 h-24 w-full max-w-[190px] rounded-2xl border-4 border-emerald-800 shadow-[0_10px_20px_rgba(0,0,0,0.35)]"
       aria-hidden
     >
       <span className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5">
