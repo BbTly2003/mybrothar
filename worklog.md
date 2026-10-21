@@ -108,3 +108,22 @@ Stage Summary:
 - BUG RAÍZ de las fichas corregido: las mitades ahora se apilan correctamente (6 = 2 columnas × 3 filas en vertical, 2 filas × 3 columnas en horizontal); las fichas son BLANCAS nítidas siempre (sin aspecto gris/muerto) y las jugables destacan con aro esmeralda.
 - La mesa ya no parece realista: aro esmeralda brillante estilo juguete + fieltro verde vivo, pozo como pila de fichas de casino, pilas de bots como montoncitos blancos con punto verde.
 - Motor, reducer y APIs intactos (solo presentación). BD en estado limpio para el usuario.
+
+---
+Task ID: 6
+Agent: Z.ai Code (main agent)
+Task: "quiero que las fichas se organizen en la mesa" — layout serpenteante para la cadena
+
+Work Log:
+- board-chain.tsx reescrito: la cadena ya no es una tira con scroll horizontal; ahora es una SERPENTINA que se organiza sola en filas alternadas (izq→der, luego der→izq, …) sobre el fieltro, sin recortes.
+- computeLayout: reparte las fichas en filas midiendo el ancho real del contenedor (ResizeObserver); elige el nivel de tamaño más grande que quepa en el presupuesto de alto: md (88px, escritorio) → sm (64px) → xs (50px, móvil/extremos); si nada cabe, queda xs con scroll interno fino.
+- Filas invertidas (der→izq) renderizan las mitades INTERCAMBIADAS (top=right, bottom=left) para que los puntos que se tocan en cada costura sigan coincidiendo; los dobles van en cruz en todas las filas.
+- domino-tile.tsx: añadido tamaño xs (50×25, puntos de 3px) para móviles.
+- Animación: solo las fichas recién jugadas entran con spring (patrón de ajuste de estado en render: seenIds/freshIds derivados al cambiar la referencia de chain, sin setState en efectos → lint limpio); las que se reacomodan entre filas no parpadean (initial=false).
+- page.tsx: mesa móvil más alta (min-h 540px) y cadena centrada (top-1/2) para que las filas extra no choquen con el pozo; presupuesto de alto por breakpoint (236 escritorio / 286 móvil) vía matchMedia.
+- Fixes durante verificación: fallback devolvía el nivel más grande (md) cuando ningún nivel cabía → ahora devuelve el más pequeño; xs compactado de 52→50px para que 23 fichas entren en 5 filas exactas en móvil.
+- Verificación E2E (1280×800 y 375×812): partida completa con 23 fichas en mesa — escritorio: 3 filas sm; móvil: 5 filas xs sin scroll apreciable, sin solapamientos con asientos ni pozo; costuras de puntos verificadas; fin de partida, diálogo de resultado y "Volver al lobby" OK; 0 errores de consola/página.
+- BD reseteada a pristine (1000 tokens, 0 partidas).
+
+Stage Summary:
+- Las fichas ahora se organizan solas en serpentina sobre la mesa (estilo tablero real de dominó / Plato), con dobles en cruz, puntos coincidentes en cada unión y tamaño adaptativo según espacio disponible. Motor, reducer y APIs intactos.

@@ -476,7 +476,7 @@ export default function DominoPage() {
 
               {/* Mesa estilo Plato */}
               <div className="plato-table relative select-none rounded-[2rem] border-[6px] border-emerald-800 p-[6px] sm:rounded-[2.75rem] sm:border-8 sm:p-2">
-                <div className="plato-felt relative min-h-[430px] overflow-hidden rounded-[1.5rem] sm:min-h-[460px] sm:rounded-[2rem]">
+                <div className="plato-felt relative min-h-[540px] overflow-hidden rounded-[1.5rem] sm:min-h-[460px] sm:rounded-[2rem]">
                   {/* Asiento superior: Lola */}
                   <Seat
                     seat={1}
@@ -511,13 +511,9 @@ export default function DominoPage() {
                     <PotChips pot={potFor(state.stake)} />
                   </div>
 
-                  {/* Cadena de fichas */}
-                  <div className="absolute inset-x-2 top-[57%] z-[5] -translate-y-1/2 sm:inset-x-28 sm:top-[52%]">
-                    <BoardChain
-                      chain={state.chain}
-                      lastSide={state.lastSide}
-                      revision={state.chain.length}
-                    />
+                  {/* Cadena de fichas (serpentina que se organiza sola) */}
+                  <div className="absolute inset-x-2 top-1/2 z-[5] -translate-y-1/2 sm:inset-x-28 sm:top-[52%]">
+                    <BoardChain chain={state.chain} />
                   </div>
 
                   {/* Pasar turno (solo sin jugada disponible) */}

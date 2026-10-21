@@ -72,6 +72,11 @@ function Pips({ value, dot, horizontal = false }: PipsProps) {
 }
 
 const TILE_SIZES = {
+  xs: {
+    vertical: 'h-[50px] w-[25px] rounded-[5px]',
+    horizontal: 'h-[25px] w-[50px] rounded-[5px]',
+    dot: 'h-[3px] w-[3px]',
+  },
   sm: {
     vertical: 'h-16 w-8 rounded-[7px]',
     horizontal: 'h-8 w-16 rounded-[7px]',
