@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { Coins, Loader2, RotateCcw, Volume2, VolumeX } from 'lucide-react'
+import { Coins, Loader2, LogOut, RotateCcw, Volume2, VolumeX } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,8 +23,8 @@ import { BoardChain } from '@/components/domino/board-chain'
 import { DominoTile } from '@/components/domino/domino-tile'
 import { GameLog } from '@/components/domino/game-log'
 import { Lobby, type ProfileData } from '@/components/domino/lobby'
-import { OpponentRail } from '@/components/domino/opponent-rail'
 import { ResultDialog } from '@/components/domino/result-dialog'
+import { Seat } from '@/components/domino/seat'
 import { SidePickerDialog } from '@/components/domino/side-picker-dialog'
 
 import { chooseBotMove, createGame, getEnds, potFor, sidesFor } from '@/lib/game/engine'
@@ -39,6 +40,26 @@ type ProfileStatus = 'loading' | 'ready' | 'error'
 interface ServerOutcomeBody {
   outcome: 'win' | 'loss' | 'draw' | 'forfeit'
   payout: number
+}
+
+/** Pila de fichas del pozo sobre el fieltro (estilo Plato) */
+function PotChips({ pot }: { pot: number }) {
+  return (
+    <div className="flex flex-col items-center gap-1" aria-label={`Pozo: ${pot} tokens`}>
+      <div className="relative h-9 w-9" aria-hidden>
+        <span className="absolute inset-x-1 bottom-0 h-7 rounded-full bg-red-500 shadow-md" />
+        <span className="absolute inset-x-0.5 bottom-1 h-7 rounded-full border-2 border-dashed border-white/60 bg-amber-500 shadow-md" />
+        <span className="absolute inset-x-0 bottom-2 h-7 rounded-full border-2 border-dashed border-white/70 bg-amber-400 shadow-lg" />
+        <Coins className="absolute inset-x-0 bottom-2 m-auto h-4 w-4 text-amber-900/70" />
+      </div>
+      <span className="rounded-full bg-black/45 px-2.5 py-0.5 text-xs font-black text-amber-300 backdrop-blur-sm">
+        {pot} 🪙
+      </span>
+      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/50" aria-hidden>
+        pozo
+      </span>
+    </div>
+  )
 }
 
 export default function DominoPage() {
@@ -58,6 +79,7 @@ export default function DominoPage() {
   const reportedRef = useRef<unknown>(null)
   const prevPhaseRef = useRef<'playing' | 'finished' | null>(null)
   const joinInFlightRef = useRef(false)
+  const lastJoinAtRef = useRef(0)
   const leavingRef = useRef(false)
 
   // ---------- Perfil ----------
@@ -84,8 +106,11 @@ export default function DominoPage() {
   // ---------- Entrar a una mesa ----------
   const joinTable = useCallback(
     async (tableStake: Stake) => {
-      if (joinInFlightRef.current) return
+      // Evita doble cobro por doble click o eventos duplicados
+      const now = Date.now()
+      if (joinInFlightRef.current || now - lastJoinAtRef.current < 800) return
       joinInFlightRef.current = true
+      lastJoinAtRef.current = now
       setJoiningStake(tableStake)
       try {
         const res = await fetch('/api/game/join', {
@@ -307,6 +332,7 @@ export default function DominoPage() {
   const botCounts: [number, number, number] = state
     ? [state.hands[1].length, state.hands[2].length, state.hands[3].length]
     : [7, 7, 7]
+  const activeSeat = state && state.phase === 'playing' ? state.turn : null
 
   const statusText = useMemo(() => {
     if (!state) return ''
@@ -319,7 +345,7 @@ export default function DominoPage() {
           : 'Es tu turno'
       }
       return playableIds.size > 0
-        ? 'Es tu turno · haz clic en una ficha para jugarla'
+        ? 'Es tu turno · toca una ficha para jugarla'
         : 'Es tu turno · no tienes jugada disponible'
     }
     return `Turno de ${SEAT_NAMES[state.turn]}…`
@@ -329,9 +355,9 @@ export default function DominoPage() {
   const canReplay = profile !== null && profile.tokens >= stake
 
   return (
-    <div className="domino-bg flex min-h-screen flex-col bg-slate-950 text-slate-100">
+    <div className="domino-bg flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
       {/* Encabezado */}
-      <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/90 backdrop-blur supports-[backdrop-filter]:bg-slate-950/75">
+      <header className="sticky top-0 z-40 border-b border-white/5 bg-zinc-950/90 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/75">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-2">
             <span className="text-2xl" aria-hidden>
@@ -345,7 +371,7 @@ export default function DominoPage() {
           <div className="flex items-center gap-2">
             <Badge
               variant="outline"
-              className="gap-1.5 border-amber-500/50 bg-slate-900 px-3 py-1.5 text-sm font-bold text-amber-400"
+              className="gap-1.5 border-amber-500/50 bg-zinc-900 px-3 py-1.5 text-sm font-bold text-amber-400"
               aria-label={`Saldo: ${tokensForBadge} tokens`}
             >
               <Coins className="h-4 w-4" aria-hidden />
@@ -354,7 +380,7 @@ export default function DominoPage() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-11 w-11 text-slate-400 hover:text-slate-100"
+              className="h-11 w-11 text-zinc-400 hover:text-zinc-100"
               onClick={() => {
                 const next = !muted
                 setMuted(next)
@@ -373,7 +399,7 @@ export default function DominoPage() {
         {screen === 'lobby' ? (
           profileStatus === 'loading' ? (
             <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-label="Cargando perfil">
-              <div className="flex flex-col items-center gap-3 text-slate-400">
+              <div className="flex flex-col items-center gap-3 text-zinc-400">
                 <Loader2 className="h-8 w-8 animate-spin text-emerald-500" aria-hidden />
                 <p className="text-sm">Cargando tu salón…</p>
               </div>
@@ -382,7 +408,7 @@ export default function DominoPage() {
             <Card className="mx-auto max-w-md border-red-500/40 bg-red-950/30">
               <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
                 <p className="text-lg font-bold text-red-400">No se pudo cargar tu perfil</p>
-                <p className="text-sm text-slate-400">
+                <p className="text-sm text-zinc-400">
                   Revisa tu conexión e inténtalo de nuevo para ver tus tokens y mesas.
                 </p>
                 <Button
@@ -391,7 +417,7 @@ export default function DominoPage() {
                     void refreshProfile()
                   }}
                   variant="outline"
-                  className="min-h-11 border-slate-700"
+                  className="min-h-11 border-zinc-700"
                 >
                   <RotateCcw className="h-4 w-4" aria-hidden /> Reintentar
                 </Button>
@@ -408,115 +434,156 @@ export default function DominoPage() {
           )
         ) : (
           state && (
-            <div className="space-y-4">
-              {/* Cabecera de la mesa */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3">
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-slate-300">
-                  <span>
-                    Apuesta: <strong className="text-slate-100">{state.stake} 🪙</strong>
-                  </span>
-                  <span>
-                    Pozo:{' '}
-                    <strong className="text-amber-400">{potFor(state.stake)} 🪙</strong>
-                  </span>
-                </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="min-h-11 bg-red-600 hover:bg-red-500"
-                  onClick={() => setConfirmLeave(true)}
-                >
-                  Abandonar mesa
-                </Button>
-              </div>
-
-              {/* Oponentes */}
-              <OpponentRail
-                counts={botCounts}
-                activeSeat={state.phase === 'playing' && state.turn !== 0 ? state.turn : null}
-              />
-
-              {/* Estado y extremos */}
-              <div className="space-y-1 text-center">
+            <div className="mx-auto w-full max-w-4xl">
+              {/* Estado y controles de la mesa */}
+              <div className="mb-4 flex flex-col items-center gap-2">
                 <p
                   aria-live="polite"
                   className={cn(
-                    'text-sm font-bold sm:text-base',
+                    'rounded-full border px-4 py-1.5 text-center text-sm font-bold shadow-lg',
                     state.phase === 'finished'
-                      ? 'text-amber-400'
-                      : state.turn === 0
-                        ? 'text-emerald-400'
-                        : 'text-slate-400',
+                      ? 'border-amber-400/60 bg-amber-400/15 text-amber-300'
+                      : myTurn
+                        ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-300'
+                        : 'border-white/10 bg-zinc-900/85 text-zinc-300',
                   )}
                 >
                   {statusText}
                 </p>
-                <p className="text-xs text-slate-500" aria-label="Extremos de la cadena">
-                  Extremos de la cadena:{' '}
-                  <strong className="text-slate-300">
-                    [ {ends ? ends.left : '—'} ] ⟷ [ {ends ? ends.right : '—'} ]
-                  </strong>
-                </p>
+                <div className="flex w-full items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-zinc-500">
+                    Apuesta: <span className="text-amber-400">{state.stake} 🪙</span>
+                  </span>
+                  <span
+                    className="text-[11px] font-medium text-zinc-500"
+                    aria-label="Extremos de la cadena"
+                  >
+                    Extremos:{' '}
+                    <span className="font-bold text-zinc-300">[ {ends ? ends.left : '—'} ]</span>{' '}
+                    ⟷ <span className="font-bold text-zinc-300">[ {ends ? ends.right : '—'} ]</span>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="min-h-9 gap-1.5 text-zinc-400 hover:bg-red-500/10 hover:text-red-400"
+                    onClick={() => setConfirmLeave(true)}
+                  >
+                    <LogOut className="h-4 w-4" aria-hidden />
+                    Salir
+                  </Button>
+                </div>
               </div>
 
-              {/* Cadena en la mesa */}
-              <BoardChain chain={state.chain} lastSide={state.lastSide} revision={state.chain.length} />
+              {/* Mesa estilo Plato */}
+              <div className="plato-table relative select-none rounded-[2rem] border-[6px] border-[#0e2a1d] p-[6px] sm:rounded-[2.75rem] sm:border-8 sm:p-2">
+                <div className="plato-felt relative min-h-[430px] overflow-hidden rounded-[1.5rem] sm:min-h-[460px] sm:rounded-[2rem]">
+                  {/* Asiento superior: Lola */}
+                  <Seat
+                    seat={1}
+                    count={botCounts[0]}
+                    active={activeSeat === 1}
+                    className="absolute left-1/2 top-3 z-10 -translate-x-1/2"
+                  />
+                  {/* Asientos laterales */}
+                  <Seat
+                    seat={2}
+                    count={botCounts[1]}
+                    active={activeSeat === 2}
+                    className="absolute left-2 top-3 z-10 sm:left-4 sm:top-1/2 sm:-translate-y-1/2"
+                  />
+                  <Seat
+                    seat={3}
+                    count={botCounts[2]}
+                    active={activeSeat === 3}
+                    className="absolute right-2 top-3 z-10 sm:right-4 sm:top-1/2 sm:-translate-y-1/2"
+                  />
+                  {/* Asiento del jugador */}
+                  <Seat
+                    seat={0}
+                    count={state.hands[0].length}
+                    active={myTurn}
+                    hideStack
+                    className="absolute bottom-3 left-3 z-10 sm:left-5"
+                  />
 
-              {/* Mano del jugador */}
-              <section aria-label="Tus fichas">
-                <div className="flex min-h-9 flex-wrap items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold text-slate-300">
-                    Tus fichas ({state.hands[0].length}){' '}
-                    {state.starter === 0 && (
-                      <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-                        abriste la cadena
-                      </span>
-                    )}
-                  </h2>
+                  {/* Pozo en el borde inferior del fieltro, junto a tu zona de juego */}
+                  <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2">
+                    <PotChips pot={potFor(state.stake)} />
+                  </div>
+
+                  {/* Cadena de fichas */}
+                  <div className="absolute inset-x-2 top-[57%] z-[5] -translate-y-1/2 sm:inset-x-28 sm:top-[52%]">
+                    <BoardChain
+                      chain={state.chain}
+                      lastSide={state.lastSide}
+                      revision={state.chain.length}
+                    />
+                  </div>
+
+                  {/* Pasar turno (solo sin jugada disponible) */}
                   {canPass && (
-                    <Button
-                      onClick={handlePass}
-                      variant="outline"
-                      className="min-h-11 animate-pulse border-amber-500/60 bg-amber-500/10 font-bold text-amber-400 hover:bg-amber-500/20 hover:text-amber-300"
-                    >
-                      ⏭ Pasar turno
-                    </Button>
+                    <div className="absolute bottom-6 right-4 z-20 sm:right-6">
+                      <Button
+                        onClick={handlePass}
+                        className="min-h-11 animate-pulse rounded-full bg-amber-400 px-6 font-black text-zinc-950 shadow-[0_8px_20px_rgba(251,191,36,0.4)] hover:bg-amber-300"
+                      >
+                        ⏭ Pasar turno
+                      </Button>
+                    </div>
                   )}
                 </div>
-                <div className="mt-3 flex flex-wrap justify-center gap-2 sm:gap-3">
-                  {state.hands[0].map((tile) => {
+              </div>
+
+              {/* Mano del jugador, solapada sobre el borde inferior de la mesa */}
+              <section aria-label="Tus fichas" className="relative z-20 -mt-4 sm:-mt-5">
+                <div className="flex flex-wrap items-end justify-center gap-2 px-2 sm:gap-2.5">
+                  {state.hands[0].map((tile, index) => {
                     const isPlayable = playableIds.has(tile.id)
                     return (
-                      <DominoTile
+                      <motion.div
                         key={tile.id}
-                        size="lg"
-                        top={tile.a}
-                        bottom={tile.b}
-                        playable={isPlayable}
-                        disabled={!isPlayable}
-                        highlight={
-                          state.chain.length === 0 &&
-                          state.requiredFirstTileId === tile.id &&
-                          state.starter === 0
-                        }
-                        onClick={() => handleTileClick(tile)}
-                        className={cn(shakeTileId === tile.id && 'domino-shake')}
-                        ariaLabel={`Ficha ${tile.a} y ${tile.b}${isPlayable ? ', jugable' : ''}`}
-                      />
+                        initial={{ opacity: 0, y: 26, scale: 0.75 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{
+                          delay: index * 0.045,
+                          type: 'spring',
+                          stiffness: 420,
+                          damping: 26,
+                        }}
+                      >
+                        <DominoTile
+                          size="lg"
+                          top={tile.a}
+                          bottom={tile.b}
+                          playable={isPlayable}
+                          disabled={!isPlayable}
+                          highlight={
+                            state.chain.length === 0 &&
+                            state.requiredFirstTileId === tile.id &&
+                            state.starter === 0
+                          }
+                          onClick={() => handleTileClick(tile)}
+                          className={cn(shakeTileId === tile.id && 'domino-shake')}
+                          ariaLabel={`Ficha ${tile.a} y ${tile.b}${isPlayable ? ', jugable' : ''}`}
+                        />
+                      </motion.div>
                     )
                   })}
                 </div>
               </section>
 
-              <GameLog entries={state.log} />
+              {/* Bitácora */}
+              <div className="mt-6">
+                <GameLog entries={state.log} />
+              </div>
             </div>
           )
         )}
       </main>
 
       {/* Pie pegado al fondo */}
-      <footer className="mt-auto border-t border-slate-800 bg-slate-950 py-4">
-        <p className="px-4 text-center text-xs text-slate-600">
+      <footer className="mt-auto border-t border-white/5 bg-zinc-950 py-4">
+        <p className="px-4 text-center text-xs text-zinc-600">
           🀄 Salón de Dominó · Tokens virtuales solo para diversión · Juega con responsabilidad
         </p>
       </footer>
@@ -550,9 +617,9 @@ export default function DominoPage() {
       />
 
       <AlertDialog open={confirmLeave} onOpenChange={setConfirmLeave}>
-        <AlertDialogContent className="border-slate-700 bg-slate-900">
+        <AlertDialogContent className="border-zinc-700 bg-zinc-900">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-slate-100">¿Abandonar la mesa?</AlertDialogTitle>
+            <AlertDialogTitle className="text-zinc-100">¿Abandonar la mesa?</AlertDialogTitle>
             <AlertDialogDescription>
               Si abandonas ahora perderás tu apuesta de{' '}
               <strong className="text-amber-400">{state?.stake ?? stake} tokens</strong>. El pozo se
@@ -560,7 +627,7 @@ export default function DominoPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-slate-100">
+            <AlertDialogCancel className="border-zinc-700 bg-transparent text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
               Seguir jugando
             </AlertDialogCancel>
             <AlertDialogAction
@@ -575,4 +642,3 @@ export default function DominoPage() {
     </div>
   )
 }
-

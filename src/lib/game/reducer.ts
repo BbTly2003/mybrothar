@@ -142,7 +142,7 @@ function outcomeLogEntry(
   return {
     id,
     text: humanWon
-      ? `🏆 ${SEAT_NAMES[0]} ganan ${outcome.payout} tokens.`
+      ? `🏆 Ganaste el pozo de ${outcome.payout} tokens.`
       : `💀 ${outcome.message}`,
     kind: humanWon ? 'win' : 'lose',
   }

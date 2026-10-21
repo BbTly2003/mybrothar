@@ -63,3 +63,29 @@ Work Log:
 
 Stage Summary:
 - Aplicación verificada de extremo a extremo: render, interacción, persistencia, responsive y accesibilidad. Lista para usar desde el Preview Panel.
+
+---
+Task ID: 4
+Agent: Z.ai Code (main agent)
+Task: Rediseño de la mesa con estilo de la app Plato (fieltro verde cenital, avatares alrededor, fichas blancas)
+
+Work Log:
+- types.ts: bots renombrados a Lola/Max/Kira (SEAT_NAMES) + añadidos SEAT_AVATARS (😎🐼🦊🐯) y SEAT_AVATAR_CLASS (degradados emerald/rose/amber/violet por asiento).
+- globals.css: añadidas clases .plato-table (aro exterior de madera oscura con sombras profundas) y .plato-felt (fieltro verde con degradado radial, textura sutil y sombras internas); eliminada la antigua .domino-felt.
+- domino-tile.tsx: reescrita — ficha blanca Plato (degradado blanco→stone, borde negro/15, esquinas redondeadas, pips zinc-800 con sombra interior); nueva prop orientation (vertical|horizontal) con rotación matemática de la cuadrícula de pips (el 6 en horizontal = 2 filas × 3 columnas); tamaños sm/md/lg con variantes por orientación; dorso blanco con emblema esmeralda; atenuación de no jugables suavizada a opacity-60.
+- board-chain.tsx: fichas tumbadas en horizontal sobre el fieltro, dobles en cruz (vertical); contenedor transparente sin borde; se centra en la mesa mientras cabe (justify-center + ResizeObserver) y al desbordar pasa a scroll normal con auto-scroll al extremo de la última jugada; placeholder de mesa vacía sin desbordes en móvil (min-w-max solo con fichas).
+- seat.tsx (nuevo): asiento estilo Plato — avatar circular con emoji + degradado, badge de conteo, píldora con nombre, pila de fichas boca abajo (h-7 w-3.5 solapadas) y halo ámbar + anillo dorado en el turno activo.
+- page.tsx: pantalla de juego reestructurada — fila de estado (píldora de turno coloreada + apuesta + extremos + Salir), mesa plato-table/plato-felt con asientos posicionados (Lola arriba-centro, Max izquierda, Kira derecha en sm+; los 3 en fila superior en móvil; Tú abajo-izquierda), pila de pozo (PotChips: 3 fichas de casino CSS + total) en el borde inferior del fieltro, botón "Pasar turno" abajo-derecha, mano solapando el borde inferior con animación spring escalonada (framer-motion), log translúcido debajo. Header/footer a zinc.
+- lobby.tsx: tarjetas redondeadas (rounded-3xl) con mini mesa de fieltro verde (MiniTable: fichas decorativas, badge ámbar del pozo, badge emoji del nivel), botones redondos, stats e historial a zinc.
+- game-log.tsx: translúcido (bg-black/35 + backdrop-blur), system de sky a teal (regla anti-azul).
+- Eliminado opponent-rail.tsx (sustituido por seat.tsx).
+- reducer.ts: log de victoria corregido ("Ganaste el pozo de X tokens").
+- Fix anti doble-cobro: lastJoinAtRef con throttle de 800ms en joinTable (el CLI de automatización disparó dos POST /api/game/join con un solo click; verificado en dev.log).
+- Verificación con agent-browser (desktop 1280×800 y móvil 375×812): lobby → mesa → apertura con doble más alto → jugadas propias (lado único inmediato + diálogo ¿Dónde colocas la ficha? con extremos) → bots jugando fichas reales por ambos lados → pase automático sin jugada → bloqueo → fin de partida con diálogo (Kira ganó, -100, pozo 400) → volver al lobby. Cadena centrada con patrón H-V-H-V correcto, extremos coincidentes en cada captura. 0 errores de consola y 0 errores de página.
+- Limpieza: BD reseteada a estado pristine (jugador "default": 1000 tokens, 0 registros, historial vacío), eliminados autoplay.sh y capturas de verificación.
+
+Stage Summary:
+- La mesa ahora imita la app Plato: vista cenital de fieltro verde con aro de madera, avatares de animales alrededor con halo de turno, fichas blancas horizontales con dobles en cruz, pila de pozo de casino en el fieltro y mano del jugador solapando el borde inferior.
+- Sin cambios de reglas ni de APIs: el rediseño es solo presentación; motor, reducer y endpoints intactos.
+- Protegido el join contra doble click (throttle 800ms) además del guard concurrente existente.
+- BD en estado limpio para el usuario: 1000 tokens al entrar.

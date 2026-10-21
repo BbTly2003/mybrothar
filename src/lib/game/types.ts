@@ -65,7 +65,18 @@ export interface GameState {
   logSeq: number
 }
 
-export const SEAT_NAMES = ['Tú', 'Bot 1', 'Bot 2', 'Bot 3'] as const
+export const SEAT_NAMES = ['Tú', 'Lola', 'Max', 'Kira'] as const
+
+/** Avatar emoji por asiento (estilo Plato) */
+export const SEAT_AVATARS = ['😎', '🐼', '🦊', '🐯'] as const
+
+/** Degradado del círculo de avatar por asiento */
+export const SEAT_AVATAR_CLASS = [
+  'from-emerald-300 to-emerald-600',
+  'from-rose-300 to-rose-500',
+  'from-amber-300 to-amber-500',
+  'from-violet-300 to-violet-500',
+] as const
 
 export const STAKES = [100, 200, 300, 500] as const
 export type Stake = (typeof STAKES)[number]

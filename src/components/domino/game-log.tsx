@@ -4,12 +4,12 @@ import { cn } from '@/lib/utils'
 import type { LogEntry } from '@/lib/game/types'
 
 const KIND_STYLES: Record<LogEntry['kind'], string> = {
-  info: 'text-slate-400',
+  info: 'text-zinc-400',
   play: 'text-emerald-300',
   pass: 'text-amber-400',
   win: 'text-emerald-400 font-bold',
   lose: 'text-red-400',
-  system: 'text-sky-300',
+  system: 'text-teal-300',
 }
 
 const KIND_PREFIX: Record<LogEntry['kind'], string> = {
@@ -25,7 +25,7 @@ const KIND_PREFIX: Record<LogEntry['kind'], string> = {
 export function GameLog({ entries }: { entries: LogEntry[] }) {
   return (
     <div
-      className="scrollbar-thin max-h-32 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-left"
+      className="scrollbar-thin max-h-32 overflow-y-auto rounded-2xl border border-white/10 bg-black/35 p-3 text-left backdrop-blur-sm"
       role="log"
       aria-live="polite"
       aria-label="Bitácora de la partida"
