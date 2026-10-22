@@ -167,3 +167,23 @@ Work Log:
 
 Stage Summary:
 - Las fichas sobre la mesa ahora se organizan EXACTAMENTE como en un juego de dominó real: cadena continua toca-toca, dobles en cruz, giros perpendiculares que conectan las filas y pips coincidentes en cada unión. Motor, reducer y APIs intactos (solo presentación). BD limpia.
+
+---
+Task ID: 9
+Agent: Z.ai Code (main agent)
+Task: "el orden de juego es siempre hacia la derecha o sea como las manecillas del reloj" — el giro de turnos debe ser HORARIO alrededor de la mesa
+
+Work Log:
+- Análisis: el motor avanza (turn + 1) % 4 (Tú→Lola→Max→Kira) pero la disposición visual era Lola ARRIBA, Max IZQUIERDA, Kira DERECHA → el resaltado de turno saltaba abajo→arriba→izq→der (no circular, imposible en una mesa real).
+- Geometría horaria requerida: Tú(abajo, 6:00) → IZQUIERDA(9:00) → FRENTE(12:00) → DERECHA(3:00). Fix mínimo: INTERCAMBIAR Lola y Max — Lola pasa a la IZQUIERDA y Max al FRENTE (arriba-centro); Kira queda a la derecha. Además coincide con la geometría real del dominó (compañero enfrente, rivales a los lados).
+- page.tsx: fila superior móvil ahora Lola|Max|Kira (izq→der = orden de turno); en escritorio solo Max arriba-centro, Lola a la izquierda (hidden md:flex) y Kira a la derecha; comentarios actualizados documentando el giro horario. Mapeo de counts (botCounts) ajustado a cada asiento.
+- types.ts: comentario doc en SEAT_NAMES: orden de turno = sentido horario (Tú abajo → Lola izq → Max frente → Kira der).
+- seat.tsx y lobby.tsx auditados: sin supuestos de posición (solo page.tsx ubicaba asientos).
+- Verificación E2E (1280×800): geometría por DOM — Max x=640 (centro), Lola x=184 (izq), Kira x=1091 (der), Tú abajo. Bitácora de DOS vueltas completas: Lola[6|6] → Max[4|6] → Kira[5|6] → Tú[0|4] → Lola[5|5] → Max[0|0] → Kira[4|5] → Tú — giro horario exacto 9:00→12:00→3:00→6:00.
+- Verificación móvil (375×812): Lola x=16 | Max x=151 | Kira x=285 (fila superior leída en orden de turno); jugada [0|1] OK y rotación continuó Tú→Lola[1|6]→Max[2|6]→Kira[2|2].
+- 0 errores de consola y de página en ambos viewports; layout y footer intactos.
+- Lint limpio. BD reseteada a pristine (jugador "default": 1000 tokens, 0 partidas).
+
+Stage Summary:
+- El turno ahora gira SIEMPRE en sentido HORARIO (manecillas del reloj) alrededor de la mesa: Tú(abajo) → Lola(izquierda) → Max(frente) → Kira(derecha) → Tú, verificado dos vueltas completas por bitácora y geometría DOM en escritorio y móvil.
+- Sin cambios de reglas ni de APIs: motor, reducer y endpoints intactos (el giro horario se logró reordenando la disposición visual de los asientos). BD limpia para el usuario.

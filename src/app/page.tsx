@@ -480,15 +480,16 @@ export default function DominoPage() {
                 </div>
               </div>
 
-              {/* Rivales alrededor de la mesa: perfiles y sus fichas en mano, FUERA del fieltro */}
+              {/* Rivales alrededor de la mesa: perfiles y sus fichas en mano, FUERA del fieltro.
+                  ORDEN DE JUEGO HORARIO (manecillas del reloj): Tú(abajo) → Lola(izq) → Max(frente) → Kira(der) */}
               <div className="mb-2 flex items-end justify-between gap-1 md:mb-3 md:justify-center">
                 <Seat
-                  seat={2}
-                  count={botCounts[1]}
-                  active={activeSeat === 2}
+                  seat={1}
+                  count={botCounts[0]}
+                  active={activeSeat === 1}
                   className="md:hidden"
                 />
-                <Seat seat={1} count={botCounts[0]} active={activeSeat === 1} />
+                <Seat seat={2} count={botCounts[1]} active={activeSeat === 2} />
                 <Seat
                   seat={3}
                   count={botCounts[2]}
@@ -498,11 +499,11 @@ export default function DominoPage() {
               </div>
 
               <div className="flex items-center justify-center gap-2 sm:gap-4">
-                {/* Max a la izquierda (escritorio) */}
+                {/* Lola a la izquierda (escritorio): el turno gira horario Tú→Lola→Max→Kira */}
                 <Seat
-                  seat={2}
-                  count={botCounts[1]}
-                  active={activeSeat === 2}
+                  seat={1}
+                  count={botCounts[0]}
+                  active={activeSeat === 1}
                   className="hidden shrink-0 md:flex"
                 />
 
@@ -560,7 +561,7 @@ export default function DominoPage() {
                   </section>
                 </div>
 
-                {/* Kira a la derecha (escritorio) */}
+                {/* Kira a la derecha (escritorio): cierra el giro horario volviendo a Tú */}
                 <Seat
                   seat={3}
                   count={botCounts[2]}

@@ -65,6 +65,11 @@ export interface GameState {
   logSeq: number
 }
 
+/**
+ * Nombres por asiento. El turno SIEMPRE avanza (turn + 1) % 4 y los asientos
+ * están dispuestos en sentido HORARIO alrededor de la mesa (manecillas del reloj):
+ *   Tú (abajo) → Lola (izquierda) → Max (frente/arriba) → Kira (derecha) → Tú
+ */
 export const SEAT_NAMES = ['Tú', 'Lola', 'Max', 'Kira'] as const
 
 /** Avatar emoji por asiento (estilo Plato) */
