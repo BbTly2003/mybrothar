@@ -365,3 +365,20 @@ Work Log:
 
 Stage Summary:
 - El botón Jugar es ahora una placa cómic morada idéntica en espíritu a la referencia: silueta dentada, borde grueso morado noche, sombra dura desplazada y JUGAR en grueso — vectorial 4K, con micro-interacciones de prensa y halo morado en la intro. Sin cambios de mecánica.
+
+---
+Task ID: 20
+Agent: Z.ai Code (main agent)
+Task: «esta es la mesa que quiero en el juego pero que la imagen que hay en la mesa que es una bandera cubana no salga hasta que caiga el rayo» (mesa de domino.webp) — mesa rústica de madera con panel de bandera revelado por el rayo
+
+Work Log:
+- Analizada la referencia (upload/mesa de domino.webp): mesa de MADERA RÚSTICA envejecida (vetas, nudos, portavasos en las esquinas) con panel central de cristal oscuro/epoxi con bandera de humo (triángulo azul con estrella blanca + franjas rojas/blancas disueltas en humo).
+- Arte de la bandera generado con image-generation (z-ai CLI, 1344x768): «bandera de humo sobre cristal negro» réplica del estilo de la foto → public/bandera-panel.png. NOTA: la bandera de la foto es la PUERTORRIQUEÑA (triángulo azul); informado al usuario, offered swap a cubana.
+- globals.css: .plato-table/.plato-felt (verde) → .mesa-wood (madera: vetas repeating-linear-gradient claras+oscuras, nudos radiales, pasta marrón #8a5c35→#6d4726, bisel inset) + .mesa-panel (epoxi negro pulido con brillos radiales) + .mesa-cup (portavaso empotrado radial).
+- page.tsx: nuevos FlagPanel (motion.img /bandera-panel.png con velo bg-black/30 + reflejo de cristal; reveal: opacity 0→1, scale 1.07→1, brightness 2.4→1 «iluminada por el rayo») y CornerCups (4 portavasos en esquinas). Estado flagVisible + prop onPhaseChange de TableIntro → visible cuando fase ∈ {bolt, crack, ready} o partida activa (!!state); al volver al menú la intro se remonta y la bandera vuelve a ocultarse. Ambas mesas (partida y menú) ahora: mesa-wood + border-[#3a2412] + p-3.5/sm:p-5 (rieles más gruesos) + CornerCups + mesa-panel + FlagPanel.
+- table-intro.tsx: nueva prop onPhaseChange (go() avisa en cada transición, incluido skip y reduced-motion); grieta adaptada al panel oscuro: brazos rgba(3,3,5,0.92), brillo interior rgba(232,242,255,0.6) (cristal), ramillas rgba(4,4,6,0.8); esquirlas verdes → cristal oscuro #2b303a→#0b0d12.
+- Verificación E2E: tormenta con bandera OCULTA (opacity 0 en throwing, medido) → rayo REVELA la bandera con fogonazo → ready con botón JUGAR morado sobre la bandera → partida real sobre la mesa de madera (drag de [6|6] verificado con PointerEvents sintéticos: «Tú jugó [6|6]», «Kira jugó [2|6]», cadena con glow sobre la bandera, 6+ entradas en bitácora); móvil 375×812 correcto (intro, revelado, partida); lint limpio; 0 errores de consola.
+- Nota técnica: agent-browser mouse down/move/up no sintetizó PointerEvents en esta sesión (drag real del CLI falló); la app usa PointerEvents estándar (sin cambios en esa área) y el drag se verificó end-to-end con eventos sintéticos completos.
+
+Stage Summary:
+- La mesa ahora es rústica de madera con portavasos y panel central de cristal negro con la bandera de humo de la foto. En la intro la bandera permanece oculta sobre el epoxi oscuro y EL RAYO LA REVELA (fogonazo + asentamiento), quedándose visible en el menú y en la partida. Motor, drag, rotación y bots intactos.

@@ -140,26 +140,42 @@ const BOLT_BRANCHES = [
   'M47 16 L50 8 L58 4',
 ]
 
-export function TableIntro({ children }: { children: ReactNode }) {
+type IntroPhase = 'pre' | 'throwing' | 'bolt' | 'crack' | 'ready'
+
+export function TableIntro({
+  children,
+  onPhaseChange,
+}: {
+  children: ReactNode
+  onPhaseChange?: (phase: IntroPhase) => void
+}) {
   const rootRef = useRef<HTMLDivElement>(null)
   const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([])
-  const [phase, setPhase] = useState<'pre' | 'throwing' | 'bolt' | 'crack' | 'ready'>('pre')
+  const [phase, setPhase] = useState<IntroPhase>('pre')
   const [storm, setStorm] = useState(false)
   const [tiles, setTiles] = useState<ScatterTile[]>([])
   const [reduced, setReduced] = useState(false)
   const gradientId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
 
+  const onPhaseRef = useRef(onPhaseChange)
+  onPhaseRef.current = onPhaseChange
+  /** cambia de fase y avisa a la mesa (la bandera se revela con el rayo) */
+  const go = (p: IntroPhase) => {
+    setPhase(p)
+    onPhaseRef.current?.(p)
+  }
+
   useEffect(() => {
     const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (isReduced) {
       setReduced(true)
-      setPhase('ready')
+      go('ready')
       return
     }
     const rect = rootRef.current?.getBoundingClientRect()
     const scatter = makeScatter(rect?.width ?? 700, rect?.height ?? 420)
     setTiles(scatter)
-    setPhase('throwing')
+    go('throwing')
 
     const timers = timersRef.current
     // golpes sordos de cada ficha al aterrizar (~60% de su caída)
@@ -170,11 +186,11 @@ export function TableIntro({ children }: { children: ReactNode }) {
     timers.push(
       setTimeout(() => {
         playSfx('thunder')
-        setPhase('bolt')
+        go('bolt')
       }, BOLT_MS),
     )
-    timers.push(setTimeout(() => setPhase('crack'), CRACK_MS))
-    timers.push(setTimeout(() => setPhase('ready'), READY_MS))
+    timers.push(setTimeout(() => go('crack'), CRACK_MS))
+    timers.push(setTimeout(() => go('ready'), READY_MS))
     return () => timers.forEach(clearTimeout)
   }, [])
 
@@ -182,7 +198,7 @@ export function TableIntro({ children }: { children: ReactNode }) {
   const skip = () => {
     if (phase === 'ready' || phase === 'pre') return
     timersRef.current.forEach(clearTimeout)
-    setPhase('ready')
+    go('ready')
   }
 
   const impact = phase === 'bolt' || phase === 'crack'
@@ -411,7 +427,7 @@ export function TableIntro({ children }: { children: ReactNode }) {
                 key={`a${i}`}
                 d={d}
                 fill="none"
-                stroke="rgba(5,32,20,0.9)"
+                stroke="rgba(3,3,5,0.92)"
                 strokeWidth="2.6"
                 strokeLinecap="round"
                 vectorEffect="non-scaling-stroke"
@@ -425,7 +441,7 @@ export function TableIntro({ children }: { children: ReactNode }) {
                 key={`l${i}`}
                 d={d}
                 fill="none"
-                stroke="rgba(190,255,220,0.5)"
+                stroke="rgba(232,242,255,0.6)"
                 strokeWidth="1"
                 strokeLinecap="round"
                 transform="translate(0.45 0.55)"
@@ -440,7 +456,7 @@ export function TableIntro({ children }: { children: ReactNode }) {
                 key={`t${i}`}
                 d={d}
                 fill="none"
-                stroke="rgba(5,32,20,0.75)"
+                stroke="rgba(4,4,6,0.8)"
                 strokeWidth="1.4"
                 strokeLinecap="round"
                 vectorEffect="non-scaling-stroke"
@@ -516,7 +532,7 @@ export function TableIntro({ children }: { children: ReactNode }) {
                     'absolute left-1/2 top-[55%] h-[7px] w-[13px] rounded-[2px] ' +
                     (ivory
                       ? 'bg-[linear-gradient(150deg,#f6efdc,#d9cca8)]'
-                      : 'bg-[linear-gradient(150deg,#2f9e6e,#14724c)]')
+                      : 'bg-[linear-gradient(150deg,#2b303a,#0b0d12)]')
                   }
                   style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.4)' }}
                   initial={{ x: 0, y: 0, rotate: 0, opacity: 1, scale: 1 }}

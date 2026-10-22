@@ -41,6 +41,52 @@ const BADGE_PATH =
   'L 124 92 L 112 102 L 92 100 L 78 110 L 64 100 L 48 102 Q 28 100 22 84 ' +
   'L 12 72 L 24 62 L 10 50 L 22 40 Q 24 20 44 14 Z'
 
+// ---------- Panel de la bandera + portavasos de la mesa rústica ----------
+
+/** Placa de cristal con la bandera de humo: oculta durante la intro hasta que cae el rayo */
+function FlagPanel({ visible }: { visible: boolean }) {
+  return (
+    <motion.div
+      className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+      initial={false}
+      animate={{ opacity: visible ? 1 : 0 }}
+      transition={{ duration: visible ? 0.45 : 0.2, ease: 'easeOut' }}
+      aria-hidden
+    >
+      <motion.img
+        src="/bandera-panel.png"
+        alt=""
+        className="h-full w-full object-cover"
+        animate={
+          visible
+            ? {
+                scale: [1.07, 1],
+                filter: ['brightness(2.4) contrast(1.15)', 'brightness(1) contrast(1)'],
+              }
+            : { scale: 1.07, filter: 'brightness(0.55)' }
+        }
+        transition={{ duration: 0.75, ease: 'easeOut' }}
+      />
+      {/* velo suave para que las fichas de marfil destaquen sobre el arte */}
+      <div className="absolute inset-0 bg-black/30" />
+      {/* reflejo de cristal pulido */}
+      <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(255,255,255,0.09)_0%,transparent_30%,transparent_70%,rgba(255,255,255,0.05)_100%)]" />
+    </motion.div>
+  )
+}
+
+/** Portavasos empotrados en las cuatro esquinas del marco de madera */
+function CornerCups() {
+  return (
+    <>
+      <span aria-hidden className="mesa-cup absolute left-1.5 top-1.5 h-5 w-5 rounded-full sm:left-2 sm:top-2 sm:h-6 sm:w-6" />
+      <span aria-hidden className="mesa-cup absolute right-1.5 top-1.5 h-5 w-5 rounded-full sm:right-2 sm:top-2 sm:h-6 sm:w-6" />
+      <span aria-hidden className="mesa-cup absolute bottom-1.5 left-1.5 h-5 w-5 rounded-full sm:bottom-2 sm:left-2 sm:h-6 sm:w-6" />
+      <span aria-hidden className="mesa-cup absolute bottom-1.5 right-1.5 h-5 w-5 rounded-full sm:bottom-2 sm:right-2 sm:h-6 sm:w-6" />
+    </>
+  )
+}
+
 // ---------- Drag & drop de fichas hacia la mesa ----------
 
 interface DragState {
@@ -136,6 +182,8 @@ export default function DominoPage() {
   const [state, dispatch] = useReducer(gameReducer, null)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [shakeTileId, setShakeTileId] = useState<number | null>(null)
+  /** la bandera del panel permanece oculta hasta que el rayo la revela en la intro */
+  const [flagVisible, setFlagVisible] = useState(false)
   /** El mute vive fuera de React (módulo sfx + localStorage): sin efectos ni hidratación frágil */
   const muted = useSyncExternalStore(subscribeMuted, getMutedSnapshot, () => false)
 
@@ -512,9 +560,11 @@ export default function DominoPage() {
               />
 
               <div className="min-w-0 flex-1">
-                {/* Mesa estilo Plato: sobre el fieltro SOLO las fichas jugadas */}
-                <div className="plato-table relative select-none rounded-[2rem] border-[6px] border-emerald-800 p-[6px] sm:rounded-[2.75rem] sm:border-8 sm:p-2">
-                  <div className="plato-felt relative flex min-h-[400px] items-center justify-center overflow-hidden rounded-[1.5rem] p-3 sm:min-h-[440px] sm:rounded-[2rem] sm:p-4">
+                {/* Mesa rústica de madera con panel de cristal: sobre él SOLO las fichas jugadas */}
+                <div className="mesa-wood relative select-none rounded-[2rem] border-[6px] border-[#3a2412] p-3.5 sm:rounded-[2.75rem] sm:border-8 sm:p-5">
+                  <CornerCups />
+                  <div className="mesa-panel relative flex min-h-[400px] items-center justify-center overflow-hidden rounded-[1.5rem] p-3 sm:min-h-[440px] sm:rounded-[2rem] sm:p-4">
+                    <FlagPanel visible={flagVisible || !!state} />
                     <BoardChain chain={state.chain} dropHint={dropHint} />
                   </div>
                 </div>
@@ -590,9 +640,13 @@ export default function DominoPage() {
         ) : (
           /* Mesa vacía: intro cinematográfica (rayo + fichas) e invitación a jugar */
           <div className="mx-auto w-full max-w-3xl">
-            <div className="plato-table relative select-none rounded-[2rem] border-[6px] border-emerald-800 p-[6px] sm:rounded-[2.75rem] sm:border-8 sm:p-2">
-              <div className="plato-felt relative min-h-[400px] overflow-hidden rounded-[1.5rem] sm:min-h-[440px] sm:rounded-[2rem]">
-                <TableIntro>
+            <div className="mesa-wood relative select-none rounded-[2rem] border-[6px] border-[#3a2412] p-3.5 sm:rounded-[2.75rem] sm:border-8 sm:p-5">
+              <CornerCups />
+              <div className="mesa-panel relative min-h-[400px] overflow-hidden rounded-[1.5rem] sm:min-h-[440px] sm:rounded-[2rem]">
+                <FlagPanel visible={flagVisible} />
+                <TableIntro
+                  onPhaseChange={(p) => setFlagVisible(p === 'bolt' || p === 'crack' || p === 'ready')}
+                >
                   <button
                     onClick={startGame}
                     className="group flex flex-col items-center gap-1.5 rounded-2xl outline-none transition-transform duration-150 hover:-rotate-1 hover:scale-[1.04] focus-visible:ring-2 focus-visible:ring-purple-200 active:translate-y-[3px] active:scale-[0.99]"
