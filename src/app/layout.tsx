@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "🀄 Salón de Dominó Online",
   description:
-    "Juego de dominó con apuestas: elige tu mesa, apuesta tokens y gana el pozo contra 3 bots.",
-  keywords: ["dominó", "domino", "juego", "apuestas", "tokens", "online"],
+    "Dominó clásico para 4 jugadores: entra directo a la mesa, juega contra 3 bots y gana la partida.",
+  keywords: ["dominó", "domino", "juego", "mesa", "online", "clásico"],
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },

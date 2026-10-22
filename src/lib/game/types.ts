@@ -27,16 +27,13 @@ export interface LogEntry {
 export type OutcomeType =
   | 'win' // el humano quedó sin fichas
   | 'loss' // un bot quedó sin fichas
-  | 'blocked-win' // mesa bloqueada, el humano tenía la mano más ligera (o empató y cobra)
+  | 'blocked-win' // mesa bloqueada, el humano tenía la mano más ligera (o empató)
   | 'blocked-loss' // mesa bloqueada, ganó un bot
-  | 'forfeit' // el humano abandonó
 
 export interface GameOutcome {
   type: OutcomeType
   /** asiento ganador (0-3) o null si corresponde */
   winnerSeat: number | null
-  /** tokens que cobra el humano (0 si pierde) */
-  payout: number
   /** resumen de puntos por asiento al bloquearse la mesa */
   pipSums?: number[]
   /** texto explicativo para el diálogo final */
@@ -60,7 +57,6 @@ export interface GameState {
   requiredFirstTileId: number | null
   /** último lado donde se jugó (para auto-scroll del tablero) */
   lastSide: Side | null
-  stake: number
   log: LogEntry[]
   logSeq: number
 }
@@ -82,13 +78,3 @@ export const SEAT_AVATAR_CLASS = [
   'from-amber-300 to-amber-500',
   'from-violet-300 to-violet-500',
 ] as const
-
-export const STAKES = [100, 200, 300, 500] as const
-export type Stake = (typeof STAKES)[number]
-
-export const TABLE_META: Record<Stake, { name: string; desc: string }> = {
-  100: { name: 'Mesa Novato', desc: 'Para calentar manos' },
-  200: { name: 'Mesa Bronce', desc: 'Riesgo moderado' },
-  300: { name: 'Mesa Plata', desc: 'Jugadores con oficio' },
-  500: { name: 'Mesa Élite', desc: 'Solo para valientes' },
-}

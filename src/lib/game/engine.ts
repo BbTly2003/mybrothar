@@ -4,7 +4,6 @@ import type { GameState, PlacedTile, Side, Tile } from './types'
 import { SEAT_NAMES } from './types'
 
 export const HAND_SIZE = 7
-export const POT_MULTIPLIER = 4
 
 /** Las 28 fichas del dominó doble-seis */
 export function createDeck(): Tile[] {
@@ -36,10 +35,6 @@ export function dealHands(): Tile[][] {
     deck.slice(HAND_SIZE * 2, HAND_SIZE * 3),
     deck.slice(HAND_SIZE * 3, HAND_SIZE * 4),
   ]
-}
-
-export function potFor(stake: number): number {
-  return stake * POT_MULTIPLIER
 }
 
 /** Extremos actuales de la cadena (null si está vacía) */
@@ -93,7 +88,7 @@ function findHighestDouble(hands: Tile[][]): { seat: number; tile: Tile } | null
 }
 
 /** Crea el estado inicial de una partida nueva (usa Math.random: llamar fuera de reducers) */
-export function createGame(stake: number): GameState {
+export function createGame(): GameState {
   const hands = dealHands()
 
   // Regla clásica: comienza quien tenga el doble más alto y juega esa ficha.
@@ -124,7 +119,7 @@ export function createGame(stake: number): GameState {
   const log: GameState['log'] = [
     {
       id: logSeq++,
-      text: `Mesa de ${stake} tokens · Pozo: ${potFor(stake)} tokens (4 jugadores)`,
+      text: 'Nueva partida · 4 jugadores · el doble más alto abre la cadena',
       kind: 'system',
     },
     {
@@ -144,7 +139,6 @@ export function createGame(stake: number): GameState {
     outcome: null,
     requiredFirstTileId: requiredTile.id,
     lastSide: null,
-    stake,
     log,
     logSeq,
   }
@@ -198,31 +192,21 @@ export function chooseBotMove(
   return { tile: scored[0].tile, side: scored[0].side }
 }
 
-/** Resuelve una mesa bloqueada: gana la mano más ligera; empate reparte el pozo */
+/** Resuelve una mesa bloqueada: gana la mano más ligera; empate compartido entre los empatados */
 export function resolveBlocked(state: GameState): GameState['outcome'] {
   const sums = state.hands.map(pipSum)
   const min = Math.min(...sums)
   const winners = sums.map((s, seat) => ({ s, seat })).filter((w) => w.s === min).map((w) => w.seat)
 
-  const pot = potFor(state.stake)
-  const share = Math.floor(pot / winners.length)
-  const remainder = pot - share * winners.length
-
-  let payout = 0
-  if (winners.includes(0)) {
-    payout = share + (winners.indexOf(0) < remainder ? 1 : 0)
-  }
-
   const humanWins = winners.includes(0)
   const winnerLabel = winners.map((w) => SEAT_NAMES[w]).join(' y ')
   const message = humanWins
-    ? `Mesa bloqueada. Con la mano más ligera (${sums[0]} puntos) cobras ${payout} tokens del pozo.`
-    : `Mesa bloqueada. ${winnerLabel} tenía la mano más ligera y se lleva el pozo. Perdiste tu apuesta de ${state.stake} tokens.`
+    ? `Mesa bloqueada. Tenías la mano más ligera (${sums[0]} puntos) y ganas la partida.`
+    : `Mesa bloqueada. ${winnerLabel} tenía la mano más ligera y gana la partida.`
 
   return {
     type: humanWins ? 'blocked-win' : 'blocked-loss',
     winnerSeat: winners[0],
-    payout,
     pipSums: sums,
     message,
   }

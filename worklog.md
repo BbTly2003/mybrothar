@@ -221,3 +221,24 @@ Work Log:
 
 Stage Summary:
 - Equidad demostrada empíricamente con el código de producción: reparto aleatorio uniforme, ~25% para cada jugador de recibir el doble 6 y abrir, manos de igual calidad media, bots sin información privilegiada. No se modificó ningún archivo de juego.
+
+---
+Task ID: 12
+Agent: Z.ai Code (main agent)
+Task: "eliminar moneda de el juego, eliminar salas, solo la mesa; hacerlo casi desde cero pero sin tocar la configuración del sistema de juego" — eliminar toda la economía y el lobby manteniendo intacto el motor
+
+Work Log:
+- PRINCIPIO: el sistema de juego (baraja, apertura con el doble más alto, rotación del turno a la DERECHA (player+3)%4, asientos Tú/Lola-izq/Max-frente/Kira-der, serpentina del fieltro, dobles en cruz, extremos con glow, bots y sus voces, validaciones) quedó SIN CAMBIOS de mecánica. Solo se rehízo la capa de economía/meta.
+- types.ts: GameOutcome pierde payout y OutcomeType pierde 'forfeit'; GameState pierde stake; eliminados STAKES/Stake/TABLE_META (config de salas).
+- engine.ts: createGame() sin stake (log inicial "Nueva partida · 4 jugadores · el doble más alto abre la cadena"); eliminados POT_MULTIPLIER y potFor; resolveBlocked sin reparto de pozo (mensajes: "ganas la partida" / "X tenía la mano más ligera y gana la partida").
+- reducer.ts: outcomes win/loss sin dinero ("¡Te quedaste sin fichas! Ganaste la partida."); outcomeLogEntry "🏆 Ganaste la partida."; detección de humanWon en bloqueo por outcome.type.
+- page.tsx REHECHO desde cero: pantalla ÚNICA de mesa. Sin estado: fieltro con botón grande "Jugar" (fichas 6|6 y 5|2 decorativas) + pista "El turno corre hacia la derecha: Tú → Kira → Max → Lola". En juego: píldora de estado + Extremos + ⏭ Pasar turno + Salir (sin apuesta ni pozo); rivales y mano intactos. Salir → confirmación sin penalización ("la partida se perderá") → volver a la mesa vacía. Header solo título + sonido (sin badge de saldo). Sin fetch a ninguna API: la partida es 100% local.
+- result-dialog.tsx rehecho: emoji/título/mensaje según outcome, resumen de "Puntos en la mano" solo en mesas bloqueadas, botones "🔁 Jugar otra vez" y "Volver a la mesa".
+- lobby.tsx ELIMINADO (salas fuera). layout.tsx: description/keywords sin apuestas ni tokens.
+- sfx.ts: el mute ahora es un store externo (subscribeMuted/getMutedSnapshot/setSfxMuted + localStorage) consumido con useSyncExternalStore — elimina el setState-en-effect que la nueva regla react-hooks/set-state-in-effect rechazaba, sin riesgo de hidratación.
+- FIX durante E2E: botón Jugar contenía dos DominoTile (que renderizan <button>) → "button cannot be a descendant of button" e hidratación rota. Fichas decorativas movidas FUERA del botón (hermanas). Verificado en sesión virgen: 0 errores de consola y de página.
+- Verificación E2E (1280×800 y 375×812): mesa vacía → Jugar → partida completa AUTOJUGADA hasta ganar (27 fichas en serpentina) → diálogo 🎉 "¡Ganaste la partida!" SIN dinero → "Volver a la mesa" OK → Jugar de nuevo → Salir/Abandonar OK → en móvil rotación verificada Kira[6|6]→Max[5|6]→Lola[5|5]→Tú. dev.log: solo GET / — CERO llamadas a APIs de economía durante el juego.
+- Lint limpio. BD/Prisma/APIs dormantes SIN tocar (config intacta; el saldo viejo del usuario queda en la BD pero ya no se usa ni se muestra).
+
+Stage Summary:
+- El juego es ahora dominó PURO: se abre directo a la mesa, se pulsa Jugar y se juega; no hay monedas, apuestas, pozo, salas, bonus ni historial de tokens. Todo el sistema de juego logrado (giro a la derecha, serpentina, perfiles, dobles, bots) permanece idéntico. Partidas 100% locales sin backend.

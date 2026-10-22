@@ -4,17 +4,33 @@ export type SfxName = 'click' | 'deal' | 'pass' | 'win' | 'lose' | 'coin'
 
 let ctx: AudioContext | null = null
 let muted = false
+let mutedLoaded = false
+
+/** Suscriptores para useSyncExternalStore (el mute vive fuera de React) */
+const mutedListeners = new Set<() => void>()
 
 export function setSfxMuted(value: boolean) {
   muted = value
+  mutedLoaded = true
   if (typeof window !== 'undefined') {
     window.localStorage.setItem('domino-muted', value ? '1' : '0')
   }
+  mutedListeners.forEach((listener) => listener())
 }
 
-export function loadSfxMuted(): boolean {
-  if (typeof window === 'undefined') return false
-  muted = window.localStorage.getItem('domino-muted') === '1'
+export function subscribeMuted(listener: () => void): () => void {
+  mutedListeners.add(listener)
+  return () => {
+    mutedListeners.delete(listener)
+  }
+}
+
+/** Snapshot para el cliente: lee localStorage una sola vez y luego usa la variable del módulo */
+export function getMutedSnapshot(): boolean {
+  if (!mutedLoaded && typeof window !== 'undefined') {
+    muted = window.localStorage.getItem('domino-muted') === '1'
+    mutedLoaded = true
+  }
   return muted
 }
 

@@ -2,7 +2,7 @@
 
 import type { GameState, Side } from './types'
 import { SEAT_NAMES } from './types'
-import { chooseBotMove, orientTile, potFor, resolveBlocked, sidesFor } from './engine'
+import { chooseBotMove, orientTile, resolveBlocked, sidesFor } from './engine'
 
 export type GameAction =
   | { type: 'SET_GAME'; state: GameState }
@@ -54,20 +54,17 @@ export function gameReducer(state: GameState | null, action: GameAction): GameSt
 
       // ¿Fin por quedarse sin fichas?
       if (hands[player].length === 0) {
-        const pot = potFor(state.stake)
         const humanWon = player === 0
         const outcome: GameState['outcome'] = humanWon
           ? {
               type: 'win',
               winnerSeat: 0,
-              payout: pot,
-              message: `¡Te quedaste sin fichas y te llevas el pozo completo de ${pot} tokens!`,
+              message: '¡Te quedaste sin fichas! Ganaste la partida.',
             }
           : {
               type: 'loss',
               winnerSeat: player,
-              payout: 0,
-              message: `${SEAT_NAMES[player]} se quedó sin fichas y gana el pozo de ${pot} tokens. Perdiste tu apuesta de ${state.stake} tokens.`,
+              message: `${SEAT_NAMES[player]} se quedó sin fichas y gana la partida.`,
             }
         return {
           ...state,
@@ -118,7 +115,7 @@ export function gameReducer(state: GameState | null, action: GameAction): GameSt
           phase: 'finished',
           outcome,
           passesInRow,
-          log: [outcomeLogEntry(state.logSeq, outcome, outcome.payout > 0), ...state.log],
+          log: [outcomeLogEntry(state.logSeq, outcome, outcome.type === 'blocked-win'), ...state.log],
           logSeq: state.logSeq + 1,
         }
       }
@@ -145,9 +142,7 @@ function outcomeLogEntry(
 ): GameState['log'][number] {
   return {
     id,
-    text: humanWon
-      ? `🏆 Ganaste el pozo de ${outcome.payout} tokens.`
-      : `💀 ${outcome.message}`,
+    text: humanWon ? '🏆 Ganaste la partida.' : `💀 ${outcome.message}`,
     kind: humanWon ? 'win' : 'lose',
   }
 }
