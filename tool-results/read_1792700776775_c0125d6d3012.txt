@@ -1,0 +1,746 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+     4→import { motion } from 'framer-motion'
+     5→import { DominoTile } from './domino-tile'
+     6→import { playSfx } from '@/lib/sfx'
+     7→
+     8→/**
+     9→ * Intro cinematográfica 4K del menú:
+    10→ *  1· Las 28 fichas de la baraja CAEN DEL CIELO con tumbo 3D, sombra de contacto
+    11→ *     y una nube de polvo al aterrizar (la mesa se oscurece: viene la tormenta).
+    12→ *  2· Cae un RAYO ramificado multicapa (núcleo blanco + halo + glow) con trueno,
+    13→ *     fogonazo y sacudida de cámara que QUIEBRA la mesa (grieta + brasas + esquirlas).
+    14→ *  3· Sobre la mesa rota, con brasas flotando, aparece el botón de JUGAR.
+    15→ * Se puede saltar tocando la pantalla y respeta prefers-reduced-motion.
+    16→ */
+    17→
+    18→interface ScatterTile {
+    19→  a: number
+    20→  b: number
+    21→  x: number // % del ancho del fieltro
+    22→  y: number // % del alto del fieltro
+    23→  rot: number
+    24→  horizontal: boolean
+    25→  delay: number
+    26→  fall: number // duración de la caída (s)
+    27→  z: number
+    28→  size: 'xs' | 'sm'
+    29→  /** deriva horizontal durante la caída (px) */
+    30→  fx: number
+    31→  /** altura de entrada: arranca por encima de la pantalla (px) */
+    32→  fy: number
+    33→  /** tumbo 3D en grados */
+    34→  flipX: number
+    35→  flipY: number
+    36→  spin: number
+    37→}
+    38→
+    39→const STORM_MS = 1150 // la mesa se oscurece: viene el rayo
+    40→const BOLT_MS = 1900 // el rayo cae
+    41→const CRACK_MS = 2150 // la mesa quiebra
+    42→const READY_MS = 3200 // aparece JUGAR
+    43→
+    44→/** Reparto aleatorio de las 28 fichas sobre el fieltro (con hueco libre en el centro) */
+    45→function makeScatter(w: number, h: number): ScatterTile[] {
+    46→  const deck: Array<[number, number]> = []
+    47→  for (let a = 0; a <= 6; a++) for (let b = a; b <= 6; b++) deck.push([a, b])
+    48→  for (let i = deck.length - 1; i > 0; i--) {
+    49→    const j = Math.floor(Math.random() * (i + 1))
+    50→    ;[deck[i], deck[j]] = [deck[j], deck[i]]
+    51→  }
+    52→
+    53→  const size: 'xs' | 'sm' = w >= 560 ? 'sm' : 'xs'
+    54→  const minDist = (size === 'sm' ? 72 : 56) * 0.62
+    55→  const placed: Array<{ x: number; y: number }> = []
+    56→
+    57→  return deck.map(([a, b], i) => {
+    58→    let x = 50
+    59→    let y = 50
+    60→    for (let t = 0; t < 60; t++) {
+    61→      x = 8 + Math.random() * 84
+    62→      y = 9 + Math.random() * 82
+    63→      // deja el centro despejado para el botón de Jugar
+    64→      if (Math.abs(x - 50) < 17 && Math.abs(y - 52) < 25) continue
+    65→      const px = (x / 100) * w
+    66→      const py = (y / 100) * h
+    67→      let ok = true
+    68→      for (const p of placed) {
+    69→        const dx = px - (p.x / 100) * w
+    70→        const dy = py - (p.y / 100) * h
+    71→        if (dx * dx + dy * dy < minDist * minDist) {
+    72→          ok = false
+    73→          break
+    74→        }
+    75→      }
+    76→      if (ok) break
+    77→    }
+    78→    placed.push({ x, y })
+    79→
+    80→    return {
+    81→      a,
+    82→      b,
+    83→      x,
+    84→      y,
+    85→      rot: -42 + Math.random() * 84,
+    86→      horizontal: Math.random() < 0.5,
+    87→      delay: i * 0.032 + Math.random() * 0.05,
+    88→      fall: 0.78 + Math.random() * 0.28,
+    89→      z: Math.floor(Math.random() * 9),
+    90→      size,
+    91→      fx: -90 + Math.random() * 180,
+    92→      fy: -(h + 160 + Math.random() * 280),
+    93→      flipX: (Math.random() < 0.5 ? -1 : 1) * (260 + Math.random() * 400),
+    94→      flipY: (Math.random() < 0.5 ? -1 : 1) * (Math.random() * 170),
+    95→      spin: Math.random() * 190 - 95,
+    96→    }
+    97→  })
+    98→}
+    99→
+   100→/** Brasas ambientales flotando sobre la mesa rota (fase ready) */
+   101→function makeEmbers(): Array<{ x: number; y: number; s: number; d: number; dur: number; drift: number; ember: boolean }> {
+   102→  return Array.from({ length: 14 }, () => ({
+   103→    x: 6 + Math.random() * 88,
+   104→    y: 30 + Math.random() * 62,
+   105→    s: 2 + Math.random() * 2.4,
+   106→    d: Math.random() * 2.2,
+   107→    dur: 2.3 + Math.random() * 1.7,
+   108→    drift: -14 + Math.random() * 28,
+   109→    ember: Math.random() < 0.55,
+   110→  }))
+   111→}
+   112→
+   113→/** Brazos de la grieta: trazos quebrados que salen del punto de impacto (50,55) */
+   114→const CRACK_ARMS = [
+   115→  'M50 55 L44 41 L48 30 L41 14',
+   116→  'M50 55 L57 43 L54 31 L61 15',
+   117→  'M50 55 L39 60 L27 57 L10 65',
+   118→  'M50 55 L61 63 L73 61 L90 71',
+   119→  'M50 55 L45 69 L49 84',
+   120→  'M50 55 L57 68 L55 87',
+   121→  'M50 55 L33 48 L18 44',
+   122→  'M50 55 L67 52 L82 40',
+   123→]
+   124→
+   125→/** Ramillas secundarias de la grieta */
+   126→const CRACK_TWIGS = [
+   127→  'M48 30 L42 24 L43 17',
+   128→  'M54 31 L60 27 L59 20',
+   129→  'M39 60 L33 66 L34 74',
+   130→  'M61 63 L67 68 L66 76',
+   131→  'M45 69 L39 73 L40 79',
+   132→  'M33 48 L28 42 L21 41',
+   133→]
+   134→
+   135→/** Ramas eléctricas del rayo (además del canal principal) */
+   136→const BOLT_BRANCHES = [
+   137→  'M47 16 L38 26 L40 34',
+   138→  'M43 47 L55 44 L64 51',
+   139→  'M54 31 L63 36 L71 33',
+   140→  'M47 16 L50 8 L58 4',
+   141→]
+   142→
+   143→type IntroPhase = 'pre' | 'throwing' | 'bolt' | 'crack' | 'ready'
+   144→
+   145→export function TableIntro({
+   146→  children,
+   147→  onPhaseChange,
+   148→}: {
+   149→  children: ReactNode
+   150→  onPhaseChange?: (phase: IntroPhase) => void
+   151→}) {
+   152→  const rootRef = useRef<HTMLDivElement>(null)
+   153→  const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([])
+   154→  const [phase, setPhase] = useState<IntroPhase>('pre')
+   155→  const [storm, setStorm] = useState(false)
+   156→  const [tiles, setTiles] = useState<ScatterTile[]>([])
+   157→  const [reduced, setReduced] = useState(false)
+   158→  const gradientId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+   159→
+   160→  const onPhaseRef = useRef(onPhaseChange)
+   161→  onPhaseRef.current = onPhaseChange
+   162→  /** cambia de fase y avisa a la mesa (la bandera se revela con el rayo) */
+   163→  const go = (p: IntroPhase) => {
+   164→    setPhase(p)
+   165→    onPhaseRef.current?.(p)
+   166→  }
+   167→
+   168→  useEffect(() => {
+   169→    const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+   170→    if (isReduced) {
+   171→      setReduced(true)
+   172→      go('ready')
+   173→      return
+   174→    }
+   175→    const rect = rootRef.current?.getBoundingClientRect()
+   176→    const scatter = makeScatter(rect?.width ?? 700, rect?.height ?? 420)
+   177→    setTiles(scatter)
+   178→    go('throwing')
+   179→
+   180→    const timers = timersRef.current
+   181→    // golpes sordos de cada ficha al aterrizar (~60% de su caída)
+   182→    for (const t of scatter) {
+   183→      timers.push(setTimeout(() => playSfx('thud'), (t.delay + t.fall * 0.62) * 1000))
+   184→    }
+   185→    timers.push(setTimeout(() => setStorm(true), STORM_MS))
+   186→    timers.push(
+   187→      setTimeout(() => {
+   188→        playSfx('thunder')
+   189→        go('bolt')
+   190→      }, BOLT_MS),
+   191→    )
+   192→    timers.push(setTimeout(() => go('crack'), CRACK_MS))
+   193→    timers.push(setTimeout(() => go('ready'), READY_MS))
+   194→    return () => timers.forEach(clearTimeout)
+   195→  }, [])
+   196→
+   197→  // Un toque durante la intro la salta (el click no llega al botón: aún no existe)
+   198→  const skip = () => {
+   199→    if (phase === 'ready' || phase === 'pre') return
+   200→    timersRef.current.forEach(clearTimeout)
+   201→    go('ready')
+   202→  }
+   203→
+   204→  const impact = phase === 'bolt' || phase === 'crack'
+   205→  const embers = useMemo(() => (phase === 'ready' && !reduced ? makeEmbers() : []), [phase, reduced])
+   206→
+   207→  return (
+   208→    <div
+   209→      ref={rootRef}
+   210→      data-testid="table-intro"
+   211→      data-phase={phase}
+   212→      onClickCapture={phase === 'ready' ? undefined : skip}
+   213→      className="absolute inset-0"
+   214→    >
+   215→      {/* ===== capa de atmósfera: oscuridad de tormenta + viñeta de cine ===== */}
+   216→      <motion.div
+   217→        className="pointer-events-none absolute inset-0 bg-black"
+   218→        aria-hidden
+   219→        initial={{ opacity: 0 }}
+   220→        animate={{
+   221→          opacity:
+   222→            phase === 'bolt'
+   223→              ? 0.32
+   224→              : phase === 'crack'
+   225→                ? 0.14
+   226→                : phase === 'ready'
+   227→                  ? 0.12
+   228→                  : storm
+   229→                    ? 0.46
+   230→                    : 0,
+   231→        }}
+   232→        transition={{ duration: phase === 'bolt' ? 0.12 : 0.55, ease: 'easeOut' }}
+   233→      />
+   234→      <motion.div
+   235→        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_42%,rgba(0,0,0,0.62)_100%)]"
+   236→        aria-hidden
+   237→        initial={{ opacity: 0 }}
+   238→        animate={{ opacity: phase === 'ready' ? 0.4 : storm || impact ? 0.8 : 0 }}
+   239→        transition={{ duration: 0.6 }}
+   240→      />
+   241→
+   242→      {/* ===== cámara: todo lo físico se sacude con el impacto ===== */}
+   243→      <motion.div
+   244→        className="absolute inset-0"
+   245→        style={{ perspective: 1100 }}
+   246→        animate={
+   247→          phase === 'bolt'
+   248→            ? {
+   249→                x: [0, -10, 9, -6, 4, -2, 0],
+   250→                y: [0, 6, -6, 4, -2, 1, 0],
+   251→                scale: [1, 1.03, 1.014, 1],
+   252→              }
+   253→            : { x: 0, y: 0, scale: 1 }
+   254→        }
+   255→        transition={{ duration: 0.55, ease: 'easeOut' }}
+   256→      >
+   257→        {/* ---- capa 1: sombras de contacto (bajo cada ficha que cae) ---- */}
+   258→        {phase !== 'pre' && !reduced && (
+   259→          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+   260→            {tiles.map((t) => (
+   261→              <motion.div
+   262→                key={`sh-${t.a}-${t.b}`}
+   263→                className={'absolute rounded-full bg-black/45 blur-[6px] ' + (t.horizontal ? '-translate-x-1/2 -translate-y-1/2' : '-translate-x-1/2 -translate-y-1/2')}
+   264→                style={{
+   265→                  left: `${t.x}%`,
+   266→                  top: `${t.y}%`,
+   267→                  width: t.horizontal ? (t.size === 'sm' ? 58 : 44) : t.size === 'sm' ? 30 : 24,
+   268→                  height: t.horizontal ? (t.size === 'sm' ? 20 : 16) : t.size === 'sm' ? 50 : 40,
+   269→                  zIndex: t.z,
+   270→                }}
+   271→                initial={{ opacity: 0, scale: 0.45 }}
+   272→                animate={{ opacity: 0.42, scale: 1 }}
+   273→                transition={{ delay: t.delay + t.fall * 0.55, duration: 0.26, ease: 'easeOut' }}
+   274→              />
+   275→            ))}
+   276→          </div>
+   277→        )}
+   278→
+   279→        {/* ---- capa 2: las 28 fichas cayendo del cielo con tumbo 3D ---- */}
+   280→        {phase !== 'pre' && (
+   281→          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+   282→            {tiles.map((t, i) => (
+   283→              // contenedor exterior: caída con tumbo 3D y rebote al aterrizar
+   284→              <motion.div
+   285→                key={`${t.a}-${t.b}`}
+   286→                className="absolute"
+   287→                style={{ left: `${t.x}%`, top: `${t.y}%`, zIndex: t.z }}
+   288→                initial={{
+   289→                  x: t.fx,
+   290→                  y: t.fy,
+   291→                  rotate: t.rot + t.spin,
+   292→                  rotateX: t.flipX,
+   293→                  rotateY: t.flipY,
+   294→                  opacity: 0,
+   295→                  scale: 0.88,
+   296→                }}
+   297→                animate={{
+   298→                  x: 0,
+   299→                  y: [t.fy, 0, -12, 0],
+   300→                  rotate: t.rot,
+   301→                  rotateX: 0,
+   302→                  rotateY: 0,
+   303→                  opacity: 1,
+   304→                  scale: 1,
+   305→                }}
+   306→                transition={{
+   307→                  x: { duration: t.fall, ease: 'easeOut' },
+   308→                  y: {
+   309→                    duration: t.fall,
+   310→                    times: [0, 0.6, 0.8, 1],
+   311→                    ease: ['easeIn', 'easeOut', 'easeIn'],
+   312→                  },
+   313→                  rotate: { duration: t.fall, ease: 'easeOut' },
+   314→                  rotateX: { duration: t.fall, ease: 'easeOut' },
+   315→                  rotateY: { duration: t.fall, ease: 'easeOut' },
+   316→                  opacity: { duration: 0.16 },
+   317→                  scale: { duration: t.fall, ease: 'easeOut' },
+   318→                }}
+   319→              >
+   320→                {/* interior: brinco 3D al impactar el rayo */}
+   321→                <motion.div
+   322→                  className="-translate-x-1/2 -translate-y-1/2"
+   323→                  animate={
+   324→                    phase === 'crack'
+   325→                      ? {
+   326→                          y: [0, -10 - (i % 4) * 2, 0],
+   327→                          rotate: [0, i % 2 ? 2.4 : -2.4, 0],
+   328→                          rotateX: [0, i % 2 ? -8 : 8, 0],
+   329→                        }
+   330→                      : { y: 0, rotate: 0, rotateX: 0 }
+   331→                  }
+   332→                  transition={{ duration: 0.46, delay: (i % 5) * 0.03, ease: 'easeOut' }}
+   333→                >
+   334→                  <DominoTile
+   335→                    top={t.a}
+   336→                    bottom={t.b}
+   337→                    size={t.size}
+   338→                    orientation={t.horizontal ? 'horizontal' : 'vertical'}
+   339→                    className="shadow-[0_2px_4px_rgba(0,0,0,0.45),0_10px_16px_rgba(0,0,0,0.28)]"
+   340→                  />
+   341→                </motion.div>
+   342→              </motion.div>
+   343→            ))}
+   344→          </div>
+   345→        )}
+   346→
+   347→        {/* ---- capa 2b: nube de polvo al aterrizar cada ficha ---- */}
+   348→        {phase !== 'pre' && !reduced && (
+   349→          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+   350→            {tiles.map((t) => (
+   351→              <motion.span
+   352→                key={`pf-${t.a}-${t.b}`}
+   353→                className="absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#e6efe8]/25 blur-[3px]"
+   354→                style={{ left: `${t.x}%`, top: `${t.y}%`, zIndex: t.z }}
+   355→                initial={{ opacity: 0, scale: 0.4 }}
+   356→                animate={{ opacity: [0, 0.5, 0], scale: 2.1 }}
+   357→                transition={{ delay: t.delay + t.fall * 0.6, duration: 0.42, ease: 'easeOut' }}
+   358→              />
+   359→            ))}
+   360→          </div>
+   361→        )}
+   362→
+   363→        {/* ---- capa 3: la grieta del fieltro (con brasas incandescentes) ---- */}
+   364→        {(phase === 'crack' || phase === 'ready') && (
+   365→          <svg
+   366→            className="pointer-events-none absolute inset-0 h-full w-full"
+   367→            viewBox="0 0 100 100"
+   368→            preserveAspectRatio="none"
+   369→            aria-hidden
+   370→          >
+   371→            <defs>
+   372→              <radialGradient id={`${gradientId}-hole`}>
+   373→                <stop offset="0" stopColor="rgba(0,0,0,0.68)" />
+   374→                <stop offset="0.5" stopColor="rgba(0,0,0,0.28)" />
+   375→                <stop offset="1" stopColor="rgba(0,0,0,0)" />
+   376→              </radialGradient>
+   377→              <radialGradient id={`${gradientId}-scorch`}>
+   378→                <stop offset="0" stopColor="rgba(10,6,2,0.75)" />
+   379→                <stop offset="0.6" stopColor="rgba(20,12,4,0.35)" />
+   380→                <stop offset="1" stopColor="rgba(0,0,0,0)" />
+   381→              </radialGradient>
+   382→            </defs>
+   383→
+   384→            {/* hundimiento del impacto + quemadura */}
+   385→            <motion.ellipse
+   386→              cx="50"
+   387→              cy="55"
+   388→              rx="17"
+   389→              ry="13"
+   390→              fill={`url(#${gradientId}-hole)`}
+   391→              initial={{ opacity: 0 }}
+   392→              animate={{ opacity: 1 }}
+   393→              transition={{ duration: 0.3 }}
+   394→            />
+   395→            <motion.ellipse
+   396→              cx="50"
+   397→              cy="55"
+   398→              rx="10"
+   399→              ry="7.5"
+   400→              fill={`url(#${gradientId}-scorch)`}
+   401→              initial={{ opacity: 0 }}
+   402→              animate={{ opacity: 1 }}
+   403→              transition={{ duration: 0.45, delay: 0.08 }}
+   404→            />
+   405→
+   406→            {/* ONDA EXPANSIVA: anillo blanco que se expande y muere */}
+   407→            {phase === 'crack' && (
+   408→              <motion.ellipse
+   409→                cx="50"
+   410→                cy="55"
+   411→                rx="16"
+   412→                ry="11"
+   413→                fill="none"
+   414→                stroke="rgba(255,255,255,0.85)"
+   415→                strokeWidth="2.4"
+   416→                vectorEffect="non-scaling-stroke"
+   417→                style={{ transformBox: 'view-box', transformOrigin: '50% 55%' }}
+   418→                initial={{ scale: 0.25, opacity: 0.95 }}
+   419→                animate={{ scale: 3.6, opacity: 0 }}
+   420→                transition={{ duration: 0.6, ease: 'easeOut' }}
+   421→              />
+   422→            )}
+   423→
+   424→            {/* trazos: sombra oscura + brillo interior desplazado = grieta profunda */}
+   425→            {CRACK_ARMS.map((d, i) => (
+   426→              <motion.path
+   427→                key={`a${i}`}
+   428→                d={d}
+   429→                fill="none"
+   430→                stroke="rgba(3,3,5,0.92)"
+   431→                strokeWidth="2.6"
+   432→                strokeLinecap="round"
+   433→                vectorEffect="non-scaling-stroke"
+   434→                initial={{ pathLength: 0 }}
+   435→                animate={{ pathLength: 1 }}
+   436→                transition={{ duration: 0.26, delay: 0.02 + i * 0.04, ease: 'circOut' }}
+   437→              />
+   438→            ))}
+   439→            {CRACK_ARMS.map((d, i) => (
+   440→              <motion.path
+   441→                key={`l${i}`}
+   442→                d={d}
+   443→                fill="none"
+   444→                stroke="rgba(232,242,255,0.6)"
+   445→                strokeWidth="1"
+   446→                strokeLinecap="round"
+   447→                transform="translate(0.45 0.55)"
+   448→                vectorEffect="non-scaling-stroke"
+   449→                initial={{ pathLength: 0 }}
+   450→                animate={{ pathLength: 1 }}
+   451→                transition={{ duration: 0.26, delay: 0.05 + i * 0.04, ease: 'circOut' }}
+   452→              />
+   453→            ))}
+   454→            {CRACK_TWIGS.map((d, i) => (
+   455→              <motion.path
+   456→                key={`t${i}`}
+   457→                d={d}
+   458→                fill="none"
+   459→                stroke="rgba(4,4,6,0.8)"
+   460→                strokeWidth="1.4"
+   461→                strokeLinecap="round"
+   462→                vectorEffect="non-scaling-stroke"
+   463→                initial={{ pathLength: 0 }}
+   464→                animate={{ pathLength: 1 }}
+   465→                transition={{ duration: 0.2, delay: 0.13 + i * 0.045, ease: 'circOut' }}
+   466→              />
+   467→            ))}
+   468→
+   469→            {/* BRASAS: la grieta queda incandescente y se enfría pulsando */}
+   470→            <g style={{ filter: 'drop-shadow(0 0 3px rgba(255,168,70,0.85))' }}>
+   471→              {CRACK_ARMS.map((d, i) => (
+   472→                <motion.path
+   473→                  key={`e${i}`}
+   474→                  d={d}
+   475→                  fill="none"
+   476→                  stroke={i % 2 ? '#ffc36e' : '#ff9d3d'}
+   477→                  strokeWidth="1.1"
+   478→                  strokeLinecap="round"
+   479→                  vectorEffect="non-scaling-stroke"
+   480→                  initial={{ opacity: 0 }}
+   481→                  animate={{ opacity: [0, 0.95, 0.42, 0.6, 0.34, 0.46, 0.34] }}
+   482→                  transition={{
+   483→                    duration: 2.2,
+   484→                    times: [0, 0.08, 0.3, 0.5, 0.68, 0.85, 1],
+   485→                    delay: 0.06 + i * 0.02,
+   486→                  }}
+   487→                />
+   488→              ))}
+   489→            </g>
+   490→          </svg>
+   491→        )}
+   492→
+   493→        {/* ---- capa 3b: brasas incandescentes latiendo (ambientación ready) ---- */}
+   494→        {phase === 'ready' && (
+   495→          <svg
+   496→            className="pointer-events-none absolute inset-0 h-full w-full"
+   497→            viewBox="0 0 100 100"
+   498→            preserveAspectRatio="none"
+   499→            aria-hidden
+   500→          >
+   501→            <g style={{ filter: 'drop-shadow(0 0 2.5px rgba(255,150,60,0.7))' }}>
+   502→              {CRACK_ARMS.map((d, i) => (
+   503→                <motion.path
+   504→                  key={`ep${i}`}
+   505→                  d={d}
+   506→                  fill="none"
+   507→                  stroke={i % 3 === 0 ? '#ffb35e' : '#ff8c2e'}
+   508→                  strokeWidth="0.9"
+   509→                  strokeLinecap="round"
+   510→                  vectorEffect="non-scaling-stroke"
+   511→                  initial={{ opacity: 0.3 }}
+   512→                  animate={{ opacity: [0.2, 0.5, 0.2] }}
+   513→                  transition={{ duration: 2.6 + (i % 4) * 0.4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.2 }}
+   514→                />
+   515→              ))}
+   516→            </g>
+   517→          </svg>
+   518→        )}
+   519→
+   520→        {/* ---- capa 4: esquirlas con gravedad + polvo del impacto ---- */}
+   521→        {phase === 'crack' && (
+   522→          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+   523→            {Array.from({ length: 18 }).map((_, i) => {
+   524→              const ang = (i / 18) * Math.PI * 2 + Math.random() * 0.5
+   525→              const dist = 52 + Math.random() * 130
+   526→              const dy = Math.sin(ang) * dist * 0.7 + 22
+   527→              const ivory = i % 3 !== 2
+   528→              return (
+   529→                <motion.span
+   530→                  key={i}
+   531→                  className={
+   532→                    'absolute left-1/2 top-[55%] h-[7px] w-[13px] rounded-[2px] ' +
+   533→                    (ivory
+   534→                      ? 'bg-[linear-gradient(150deg,#f6efdc,#d9cca8)]'
+   535→                      : 'bg-[linear-gradient(150deg,#2b303a,#0b0d12)]')
+   536→                  }
+   537→                  style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.4)' }}
+   538→                  initial={{ x: 0, y: 0, rotate: 0, opacity: 1, scale: 1 }}
+   539→                  animate={{
+   540→                    x: Math.cos(ang) * dist,
+   541→                    y: [0, dy, dy * 1.75],
+   542→                    rotate: Math.random() * 620 - 310,
+   543→                    opacity: [1, 1, 0],
+   544→                    scale: 0.65,
+   545→                  }}
+   546→                  transition={{
+   547→                    x: { duration: 0.85, ease: 'easeOut' },
+   548→                    y: { duration: 0.85, times: [0, 0.5, 1], ease: ['easeOut', 'easeIn'] },
+   549→                    rotate: { duration: 0.85, ease: 'easeOut' },
+   550→                    opacity: { duration: 0.85, times: [0, 0.55, 1] },
+   551→                    scale: { duration: 0.85 },
+   552→                  }}
+   553→                />
+   554→              )
+   555→            })}
+   556→            {/* nubes de polvo del impacto */}
+   557→            {Array.from({ length: 6 }).map((_, i) => {
+   558→              const ang = (i / 6) * Math.PI * 2
+   559→              return (
+   560→                <motion.span
+   561→                  key={`d${i}`}
+   562→                  className="absolute left-1/2 top-[55%] h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#cfd8cd]/30 blur-[6px]"
+   563→                  initial={{ opacity: 0, scale: 0.5 }}
+   564→                  animate={{
+   565→                    opacity: [0, 0.55, 0],
+   566→                    scale: 2.8,
+   567→                    x: Math.cos(ang) * 40,
+   568→                    y: Math.sin(ang) * 26,
+   569→                  }}
+   570→                  transition={{ duration: 0.65, delay: 0.04 + i * 0.02, ease: 'easeOut' }}
+   571→                />
+   572→              )
+   573→            })}
+   574→          </div>
+   575→        )}
+   576→
+   577→        {/* ---- capa 5: el rayo ramificado multicapa ---- */}
+   578→        {phase === 'bolt' && (
+   579→          <svg
+   580→            className="pointer-events-none absolute inset-0 h-full w-full"
+   581→            viewBox="0 0 100 100"
+   582→            preserveAspectRatio="none"
+   583→            aria-hidden
+   584→          >
+   585→            <defs>
+   586→              <filter id={`${gradientId}-bglow`} x="-60%" y="-60%" width="220%" height="220%">
+   587→                <feGaussianBlur stdDeviation="2.2" />
+   588→              </filter>
+   589→              <radialGradient id={`${gradientId}-halo`}>
+   590→                <stop offset="0" stopColor="rgba(255,255,255,0.95)" />
+   591→                <stop offset="0.35" stopColor="rgba(230,255,244,0.5)" />
+   592→                <stop offset="1" stopColor="rgba(200,255,230,0)" />
+   593→              </radialGradient>
+   594→            </defs>
+   595→
+   596→            {/* canal principal: glow + cuerpo + núcleo blanco */}
+   597→            <motion.g
+   598→              initial={{ opacity: 0 }}
+   599→              animate={{ opacity: [0, 1, 0.25, 1, 0.5, 1, 0] }}
+   600→              transition={{ duration: 0.58, times: [0, 0.07, 0.2, 0.32, 0.5, 0.66, 1] }}
+   601→            >
+   602→              {/* halo del impacto */}
+   603→              <motion.circle
+   604→                cx="50"
+   605→                cy="55"
+   606→                r="11"
+   607→                fill={`url(#${gradientId}-halo)`}
+   608→                style={{ transformBox: 'view-box', transformOrigin: '50% 55%' }}
+   609→                initial={{ scale: 0.4, opacity: 0.4 }}
+   610→                animate={{ scale: [0.4, 2.4, 3.1], opacity: [0.4, 0.95, 0] }}
+   611→                transition={{ duration: 0.55, times: [0, 0.45, 1], ease: 'easeOut' }}
+   612→              />
+   613→              {/* glow exterior */}
+   614→              <motion.path
+   615→                d="M56 -4 L47 16 L54 31 L43 47 L50 55"
+   616→                fill="none"
+   617→                stroke="rgba(225,255,242,0.55)"
+   618→                strokeWidth="13"
+   619→                strokeLinejoin="round"
+   620→                vectorEffect="non-scaling-stroke"
+   621→                filter={`url(#${gradientId}-bglow)`}
+   622→                initial={{ pathLength: 0 }}
+   623→                animate={{ pathLength: 1 }}
+   624→                transition={{ duration: 0.13, ease: 'linear' }}
+   625→              />
+   626→              {/* cuerpo */}
+   627→              <motion.path
+   628→                d="M56 -4 L47 16 L54 31 L43 47 L50 55"
+   629→                fill="none"
+   630→                stroke="rgba(244,255,250,0.92)"
+   631→                strokeWidth="5.5"
+   632→                strokeLinejoin="round"
+   633→                vectorEffect="non-scaling-stroke"
+   634→                initial={{ pathLength: 0 }}
+   635→                animate={{ pathLength: 1 }}
+   636→                transition={{ duration: 0.13, ease: 'linear' }}
+   637→              />
+   638→              {/* núcleo blanco */}
+   639→              <motion.path
+   640→                d="M56 -4 L47 16 L54 31 L43 47 L50 55"
+   641→                fill="none"
+   642→                stroke="#ffffff"
+   643→                strokeWidth="2.2"
+   644→                strokeLinejoin="round"
+   645→                vectorEffect="non-scaling-stroke"
+   646→                initial={{ pathLength: 0 }}
+   647→                animate={{ pathLength: 1 }}
+   648→                transition={{ duration: 0.13, ease: 'linear' }}
+   649→              />
+   650→            </motion.g>
+   651→
+   652→            {/* ramas eléctricas secundarias */}
+   653→            <motion.g
+   654→              initial={{ opacity: 0 }}
+   655→              animate={{ opacity: [0, 0.9, 0.15, 0.7, 0] }}
+   656→              transition={{ duration: 0.5, times: [0, 0.12, 0.38, 0.6, 1], delay: 0.05 }}
+   657→              style={{ filter: 'drop-shadow(0 0 3px rgba(220,255,240,0.8))' }}
+   658→            >
+   659→              {BOLT_BRANCHES.map((d, i) => (
+   660→                <motion.path
+   661→                  key={i}
+   662→                  d={d}
+   663→                  fill="none"
+   664→                  stroke="rgba(235,255,247,0.9)"
+   665→                  strokeWidth="1.6"
+   666→                  strokeLinejoin="round"
+   667→                  vectorEffect="non-scaling-stroke"
+   668→                  initial={{ pathLength: 0 }}
+   669→                  animate={{ pathLength: 1 }}
+   670→                  transition={{ duration: 0.1, delay: 0.05 + i * 0.015, ease: 'linear' }}
+   671→                />
+   672→              ))}
+   673→            </motion.g>
+   674→          </svg>
+   675→        )}
+   676→
+   677→        {/* ---- capa 6: fogonazo de doble pulso sobre toda la app ---- */}
+   678→        {phase === 'bolt' && (
+   679→          <motion.div
+   680→            className="pointer-events-none fixed inset-0 z-[60] bg-white"
+   681→            initial={{ opacity: 0 }}
+   682→            animate={{ opacity: [0, 0.95, 0.1, 0.62, 0.14, 0.32, 0] }}
+   683→            transition={{ duration: 0.62, times: [0, 0.08, 0.3, 0.45, 0.62, 0.78, 1] }}
+   684→            aria-hidden
+   685→          />
+   686→        )}
+   687→
+   688→        {/* ---- contenido (botón) al final, con halo de brasas: sobre las fichas ---- */}
+   689→        <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-5 p-3">
+   690→          {phase === 'ready' && (
+   691→            <motion.div
+   692→              className="relative flex flex-col items-center gap-5"
+   693→              initial={{ opacity: 0, scale: 0.8, y: 16 }}
+   694→              animate={{ opacity: 1, scale: 1, y: 0 }}
+   695→              transition={{ type: 'spring', stiffness: 330, damping: 21 }}
+   696→            >
+   697→              {/* halo pulsante de energía detrás del botón */}
+   698→              {!reduced && (
+   699→                <motion.span
+   700→                  className="pointer-events-none absolute -inset-3 rounded-[2.4rem] bg-purple-300/25 blur-lg"
+   701→                  aria-hidden
+   702→                  animate={{ opacity: [0.3, 0.65, 0.3], scale: [0.97, 1.03, 0.97] }}
+   703→                  transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+   704→                />
+   705→              )}
+   706→              {/* chispa eléctrica de entrada */}
+   707→              {!reduced && (
+   708→                <motion.span
+   709→                  className="pointer-events-none absolute -inset-1.5 rounded-[2.1rem] border-2 border-purple-100/80"
+   710→                  aria-hidden
+   711→                  initial={{ opacity: 0.95, scale: 1.18 }}
+   712→                  animate={{ opacity: 0, scale: 1 }}
+   713→                  transition={{ duration: 0.55, ease: 'easeOut' }}
+   714→                />
+   715→              )}
+   716→              <div className="relative">{children}</div>
+   717→            </motion.div>
+   718→          )}
+   719→        </div>
+   720→      </motion.div>
+   721→
+   722→      {/* ---- brasas flotando sobre la mesa rota (ambientación) ---- */}
+   723→      {phase === 'ready' && !reduced && (
+   724→        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+   725→          {embers.map((e, i) => (
+   726→            <motion.span
+   727→              key={i}
+   728→              className={'absolute rounded-full ' + (e.ember ? 'bg-[#ffb45e]' : 'bg-[#f0e6cd]')}
+   729→              style={{
+   730→                left: `${e.x}%`,
+   731→                top: `${e.y}%`,
+   732→                width: e.s,
+   733→                height: e.s,
+   734→                boxShadow: e.ember ? '0 0 6px rgba(255,150,60,0.9)' : '0 0 4px rgba(240,230,205,0.7)',
+   735→              }}
+   736→              initial={{ opacity: 0, y: 0, x: 0 }}
+   737→              animate={{ opacity: [0, 0.85, 0], y: -34, x: e.drift }}
+   738→              transition={{ duration: e.dur, repeat: Infinity, delay: e.d, ease: 'easeInOut' }}
+   739→            />
+   740→          ))}
+   741→        </div>
+   742→      )}
+   743→    </div>
+   744→  )
+   745→}
+   746→

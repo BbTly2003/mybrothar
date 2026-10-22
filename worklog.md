@@ -382,3 +382,22 @@ Work Log:
 
 Stage Summary:
 - La mesa ahora es rústica de madera con portavasos y panel central de cristal negro con la bandera de humo de la foto. En la intro la bandera permanece oculta sobre el epoxi oscuro y EL RAYO LA REVELA (fogonazo + asentamiento), quedándose visible en el menú y en la partida. Motor, drag, rotación y bots intactos.
+
+---
+Task ID: 20
+Agent: Z.ai Code (principal)
+Task: Mesa rústica con bandera en el panel — la bandera NO se ve hasta que cae el rayo de la intro; petición final «la quiero cubana» (bandera de Cuba en vez de la de PR de la foto de referencia)
+
+Work Log:
+- Se localizó y convirtió la referencia «upload/mesa de domino.webp» (mesa rústica de tablones con portavasos y panel oscuro con bandera humeante).
+- Se encontró la Task 20 parcialmente construida en la sesión anterior: CSS .mesa-wood / .mesa-panel / .mesa-cup en globals.css, componentes FlagPanel + CornerCups y estado flagVisible en page.tsx, prop onPhaseChange en table-intro.tsx (go() notifica cada fase), todo ya cableado.
+- Se verificó en navegador con un solo eval (reload + setInterval 60ms): throwing→flagOpacity 0, bolt→inicia revelación, crack→0.56, ready→1. La bandera se revela EXACTAMENTE cuando cae el rayo.
+- Petición del usuario: la bandera debía ser CUBANA (la generada era la de Puerto Rico, triángulo azul). Regenerada con z-ai image CLI (1344x768): bandera de Cuba humeante — triángulo ROJO con estrella blanca de 5 puntas, franjas azul/blanco, humo gris sobre negro, respaldada la anterior en /tmp.
+- Partida iniciada desde el menú: mesa de juego con marco rústico + panel de cristal con la bandera cubana visible, extremos 6|6, bots Lola/Kira/Max activos.
+- Mejora de legibilidad: sombra de texto al subtítulo «4 jugadores · el doble más alto abre la partida» ([text-shadow:0_1px_2px_rgba(0,0,0,0.95),0_0_8px_rgba(0,0,0,0.8)]).
+- Verificación completa: lint limpio, móvil 375x812 correcto, 0 errores de página/consola.
+
+Stage Summary:
+- public/bandera-panel.png = bandera de CUBA (triángulo rojo + estrella blanca + franjas azul/blanco) estilo humo sobre negro; respaldo de la de PR en /tmp/bandera-panel-pr-backup.png.
+- Flujo confirmado en navegador: la bandera permanece oculta durante la lluvia de fichas y se ilumina con el fogonazo del rayo (opacity 0→1 entre bolt y ready); en la partida siempre visible.
+- Sin cambios en reducer.ts, rotación (player+3)%4, fichas SVG ni motor; solo imagen regenerada + text-shadow del subtítulo.

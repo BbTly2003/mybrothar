@@ -1,0 +1,762 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from 'react'
+     4→     4→import { motion } from 'framer-motion'
+     5→     5→import { toast } from 'sonner'
+     6→     6→import { LogOut, Volume2, VolumeX } from 'lucide-react'
+     7→     7→
+     8→     8→import { Button } from '@/components/ui/button'
+     9→     9→import {
+    10→    10→  AlertDialog,
+    11→    11→  AlertDialogAction,
+    12→    12→  AlertDialogCancel,
+    13→    13→  AlertDialogContent,
+    14→    14→  AlertDialogDescription,
+    15→    15→  AlertDialogFooter,
+    16→    16→  AlertDialogHeader,
+    17→    17→  AlertDialogTitle,
+    18→    18→} from '@/components/ui/alert-dialog'
+    19→    19→
+    20→    20→import { BoardChain } from '@/components/domino/board-chain'
+    21→    21→import { DominoTile } from '@/components/domino/domino-tile'
+    22→    22→import { GameLog } from '@/components/domino/game-log'
+    23→    23→import { ResultDialog } from '@/components/domino/result-dialog'
+    24→    24→import { Seat } from '@/components/domino/seat'
+    25→    25→import { TableIntro } from '@/components/domino/table-intro'
+    26→    26→
+    27→    27→import { chooseBotMove, createGame, getEnds, sidesFor } from '@/lib/game/engine'
+    28→    28→import { gameReducer } from '@/lib/game/reducer'
+    29→    29→import type { Side, Tile } from '@/lib/game/types'
+    30→    30→import { SEAT_NAMES } from '@/lib/game/types'
+    31→    31→import { getMutedSnapshot, playSfx, setSfxMuted, subscribeMuted } from '@/lib/sfx'
+    32→    32→import { cn } from '@/lib/utils'
+    33→    33→
+    34→    34→// ---------- Placa cómic del botón JUGAR (silueta dentada tipo peg tearing) ----------
+    35→    35→
+    36→    36→const BADGE_PATH =
+    37→    37→  'M 44 14 L 62 6 L 76 16 L 94 12 L 106 20 L 120 12 L 142 8 L 154 16 L 176 12 ' +
+    38→    38→  'L 192 3 L 206 13 L 228 12 L 240 18 L 254 10 L 272 14 Q 292 16 294 34 ' +
+    39→    39→  'L 304 46 L 294 56 L 308 66 L 296 76 Q 298 92 280 98 L 264 106 L 250 98 ' +
+    40→    40→  'L 232 102 L 220 92 L 206 102 L 186 100 L 172 112 L 158 100 L 138 102 ' +
+    41→    41→  'L 124 92 L 112 102 L 92 100 L 78 110 L 64 100 L 48 102 Q 28 100 22 84 ' +
+    42→    42→  'L 12 72 L 24 62 L 10 50 L 22 40 Q 24 20 44 14 Z'
+    43→    43→
+    44→    44→// ---------- Panel de la bandera + portavasos de la mesa rústica ----------
+    45→    45→
+    46→    46→/** Placa de cristal con la bandera de humo: oculta durante la intro hasta que cae el rayo */
+    47→    47→function FlagPanel({ visible }: { visible: boolean }) {
+    48→    48→  return (
+    49→    49→    <motion.div
+    50→    50→      className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+    51→    51→      initial={false}
+    52→    52→      animate={{ opacity: visible ? 1 : 0 }}
+    53→    53→      transition={{ duration: visible ? 0.45 : 0.2, ease: 'easeOut' }}
+    54→    54→      aria-hidden
+    55→    55→    >
+    56→    56→      <motion.img
+    57→    57→        src="/bandera-panel.png"
+    58→    58→        alt=""
+    59→    59→        className="h-full w-full object-cover"
+    60→    60→        animate={
+    61→    61→          visible
+    62→    62→            ? {
+    63→    63→                scale: [1.07, 1],
+    64→    64→                filter: ['brightness(2.4) contrast(1.15)', 'brightness(1) contrast(1)'],
+    65→    65→              }
+    66→    66→            : { scale: 1.07, filter: 'brightness(0.55)' }
+    67→    67→        }
+    68→    68→        transition={{ duration: 0.75, ease: 'easeOut' }}
+    69→    69→      />
+    70→    70→      {/* velo suave para que las fichas de marfil destaquen sobre el arte */}
+    71→    71→      <div className="absolute inset-0 bg-black/30" />
+    72→    72→      {/* reflejo de cristal pulido */}
+    73→    73→      <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(255,255,255,0.09)_0%,transparent_30%,transparent_70%,rgba(255,255,255,0.05)_100%)]" />
+    74→    74→    </motion.div>
+    75→    75→  )
+    76→    76→}
+    77→    77→
+    78→    78→/** Portavasos empotrados en las cuatro esquinas del marco de madera */
+    79→    79→function CornerCups() {
+    80→    80→  return (
+    81→    81→    <>
+    82→    82→      <span aria-hidden className="mesa-cup absolute left-1.5 top-1.5 h-5 w-5 rounded-full sm:left-2 sm:top-2 sm:h-6 sm:w-6" />
+    83→    83→      <span aria-hidden className="mesa-cup absolute right-1.5 top-1.5 h-5 w-5 rounded-full sm:right-2 sm:top-2 sm:h-6 sm:w-6" />
+    84→    84→      <span aria-hidden className="mesa-cup absolute bottom-1.5 left-1.5 h-5 w-5 rounded-full sm:bottom-2 sm:left-2 sm:h-6 sm:w-6" />
+    85→    85→      <span aria-hidden className="mesa-cup absolute bottom-1.5 right-1.5 h-5 w-5 rounded-full sm:bottom-2 sm:right-2 sm:h-6 sm:w-6" />
+    86→    86→    </>
+    87→    87→  )
+    88→    88→}
+    89→    89→
+    90→    90→// ---------- Drag & drop de fichas hacia la mesa ----------
+    91→    91→
+    92→    92→interface DragState {
+    93→    93→  tile: Tile
+    94→    94→  /** lados donde la ficha encaja ahora mismo */
+    95→    95→  sides: Side[]
+    96→    96→  startX: number
+    97→    97→  startY: number
+    98→    98→  x: number
+    99→    99→  y: number
+   100→   100→  /** true cuando el arrastre superó el umbral: aparece la ficha fantasma y las zonas de suelta */
+   101→   101→  active: boolean
+   102→   102→  /** extremo que está bajo el puntero ahora mismo */
+   103→   103→  hover: Side | null
+   104→   104→}
+   105→   105→
+   106→   106→interface DropZones {
+   107→   107→  left: DOMRect[]
+   108→   108→  right: DOMRect[]
+   109→   109→}
+   110→   110→
+   111→   111→/** Movimiento mínimo (px) para distinguir un arrastre de un simple toque */
+   112→   112→const DRAG_THRESHOLD = 6
+   113→   113→/** Amplitud de cada zona de suelta alrededor de su extremo (px) */
+   114→   114→const ZONE_PAD = 44
+   115→   115→/** Retardo del paso automático cuando no tienes jugada (ms) — como en la mesa real */
+   116→   116→const AUTO_PASS_DELAY = 1250
+   117→   117→
+   118→   118→/** Mide las zonas de suelta de la mesa: extremo izquierdo y extremo derecho de la cadena */
+   119→   119→function collectDropZones(chainStarted: boolean): DropZones | null {
+   120→   120→  if (typeof document === 'undefined') return null
+   121→   121→  const zones: DropZones = { left: [], right: [] }
+   122→   122→  if (!chainStarted) {
+   123→   123→    const empty = document.querySelector<HTMLElement>('[data-end="empty"]')
+   124→   124→    if (empty) {
+   125→   125→      const r = empty.getBoundingClientRect()
+   126→   126→      zones.left.push(r)
+   127→   127→      zones.right.push(r)
+   128→   128→    }
+   129→   129→    return zones.left.length > 0 ? zones : null
+   130→   130→  }
+   131→   131→  const leftEl = document.querySelector<HTMLElement>('[data-end="left"], [data-end="both"]')
+   132→   132→  const rightEl = document.querySelector<HTMLElement>('[data-end="right"], [data-end="both"]')
+   133→   133→  const lr = leftEl?.getBoundingClientRect() ?? null
+   134→   134→  const rr = rightEl?.getBoundingClientRect() ?? null
+   135→   135→  if (lr && rr && Math.abs(lr.left - rr.left) < 1 && Math.abs(lr.width - rr.width) < 1) {
+   136→   136→    // Con una sola ficha en la mesa ella misma es ambos extremos: mitad izquierda / mitad derecha
+   137→   137→    zones.left.push(new DOMRect(lr.left, lr.top, lr.width / 2, lr.height))
+   138→   138→    zones.right.push(new DOMRect(lr.left + lr.width / 2, lr.top, lr.width / 2, lr.height))
+   139→   139→    zones.left.push(new DOMRect(lr.left - 80, lr.top, 80, lr.height))
+   140→   140→    zones.right.push(new DOMRect(lr.right, lr.top, 80, lr.height))
+   141→   141→  } else {
+   142→   142→    if (lr) {
+   143→   143→      zones.left.push(lr)
+   144→   144→      // prolongación hacia fuera del extremo: ahí es donde apoyarías la ficha nueva
+   145→   145→      zones.left.push(new DOMRect(lr.left - 90, lr.top, 90, lr.height))
+   146→   146→    }
+   147→   147→    if (rr) {
+   148→   148→      zones.right.push(rr)
+   149→   149→      zones.right.push(new DOMRect(rr.right, rr.top, 90, rr.height))
+   150→   150→    }
+   151→   151→  }
+   152→   152→  return zones.left.length > 0 || zones.right.length > 0 ? zones : null
+   153→   153→}
+   154→   154→
+   155→   155→/** ¿Está el puntero sobre alguna zona de suelta válida? Devuelve el lado más cercano */
+   156→   156→function hitTestSide(zones: DropZones | null, x: number, y: number, sides: Side[]): Side | null {
+   157→   157→  if (!zones) return null
+   158→   158→  let best: Side | null = null
+   159→   159→  let bestDist = Infinity
+   160→   160→  for (const side of ['left', 'right'] as const) {
+   161→   161→    if (!sides.includes(side)) continue
+   162→   162→    for (const r of zones[side]) {
+   163→   163→      if (
+   164→   164→        x < r.left - ZONE_PAD ||
+   165→   165→        x > r.right + ZONE_PAD ||
+   166→   166→        y < r.top - ZONE_PAD ||
+   167→   167→        y > r.bottom + ZONE_PAD
+   168→   168→      ) {
+   169→   169→        continue
+   170→   170→      }
+   171→   171→      const dist = Math.abs(x - (r.left + r.width / 2))
+   172→   172→      if (dist < bestDist) {
+   173→   173→        bestDist = dist
+   174→   174→        best = side
+   175→   175→      }
+   176→   176→    }
+   177→   177→  }
+   178→   178→  return best
+   179→   179→}
+   180→   180→
+   181→   181→export default function DominoPage() {
+   182→   182→  const [state, dispatch] = useReducer(gameReducer, null)
+   183→   183→  const [confirmLeave, setConfirmLeave] = useState(false)
+   184→   184→  const [shakeTileId, setShakeTileId] = useState<number | null>(null)
+   185→   185→  /** la bandera del panel permanece oculta hasta que el rayo la revela en la intro */
+   186→   186→  const [flagVisible, setFlagVisible] = useState(false)
+   187→   187→  /** El mute vive fuera de React (módulo sfx + localStorage): sin efectos ni hidratación frágil */
+   188→   188→  const muted = useSyncExternalStore(subscribeMuted, getMutedSnapshot, () => false)
+   189→   189→
+   190→   190→  // ---------- Drag & drop ----------
+   191→   191→  const [drag, setDrag] = useState<DragState | null>(null)
+   192→   192→  const dragRef = useRef<DragState | null>(null)
+   193→   193→  const zonesRef = useRef<DropZones | null>(null)
+   194→   194→  const suppressClickRef = useRef(false)
+   195→   195→  const rafRef = useRef(0)
+   196→   196→  const pendingPointRef = useRef<{ x: number; y: number } | null>(null)
+   197→   197→
+   198→   198→  const prevPhaseRef = useRef<'playing' | 'finished' | null>(null)
+   199→   199→
+   200→   200→  const updateDrag = useCallback((d: DragState | null) => {
+   201→   201→    dragRef.current = d
+   202→   202→    setDrag(d)
+   203→   203→  }, [])
+   204→   204→
+   205→   205→  // ---------- Sonido al terminar la partida ----------
+   206→   206→  useEffect(() => {
+   207→   207→    if (!state) {
+   208→   208→      prevPhaseRef.current = null
+   209→   209→      return
+   210→   210→    }
+   211→   211→    if (prevPhaseRef.current !== state.phase) {
+   212→   212→      if (state.phase === 'finished' && state.outcome) {
+   213→   213→        playSfx(state.outcome.type === 'win' || state.outcome.type === 'blocked-win' ? 'win' : 'lose')
+   214→   214→      }
+   215→   215→      prevPhaseRef.current = state.phase
+   216→   216→    }
+   217→   217→  }, [state])
+   218→   218→
+   219→   219→  // ---------- Bucle de los bots ----------
+   220→   220→  useEffect(() => {
+   221→   221→    if (!state || state.phase !== 'playing' || state.turn === 0) return
+   222→   222→    const botSeat = state.turn
+   223→   223→    const timer = setTimeout(
+   224→   224→      () => {
+   225→   225→        const requiredId =
+   226→   226→          state.chain.length === 0 && botSeat === state.starter ? state.requiredFirstTileId : null
+   227→   227→        const move = chooseBotMove(state.hands[botSeat], state.chain, requiredId)
+   228→   228→        if (move) {
+   229→   229→          dispatch({ type: 'APPLY_PLAY', player: botSeat, tileId: move.tile.id, side: move.side })
+   230→   230→          playSfx('click')
+   231→   231→        } else {
+   232→   232→          dispatch({ type: 'APPLY_PASS', player: botSeat })
+   233→   233→          playSfx('pass')
+   234→   234→        }
+   235→   235→      },
+   236→   236→      850 + Math.random() * 550,
+   237→   237→    )
+   238→   238→    return () => clearTimeout(timer)
+   239→   239→  }, [state])
+   240→   240→
+   241→   241→  // ---------- Valores derivados para la UI ----------
+   242→   242→  const myTurn = !!state && state.phase === 'playing' && state.turn === 0
+   243→   243→
+   244→   244→  const playableInfo = useMemo(() => {
+   245→   245→    const ids = new Set<number>()
+   246→   246→    const sides = new Map<number, Side[]>()
+   247→   247→    if (!state || state.phase !== 'playing' || state.turn !== 0) return { ids, sides }
+   248→   248→    if (state.chain.length === 0 && state.requiredFirstTileId !== null) {
+   249→   249→      if (state.starter === 0) {
+   250→   250→        const t = state.hands[0].find((x) => x.id === state.requiredFirstTileId)
+   251→   251→        if (t) {
+   252→   252→          ids.add(t.id)
+   253→   253→          sides.set(t.id, ['right'])
+   254→   254→        }
+   255→   255→      }
+   256→   256→      return { ids, sides }
+   257→   257→    }
+   258→   258→    for (const t of state.hands[0]) {
+   259→   259→      const s = sidesFor(t, state.chain)
+   260→   260→      if (s.length > 0) {
+   261→   261→        ids.add(t.id)
+   262→   262→        sides.set(t.id, s)
+   263→   263→      }
+   264→   264→    }
+   265→   265→    return { ids, sides }
+   266→   266→  }, [state])
+   267→   267→  const playableIds = playableInfo.ids
+   268→   268→
+   269→   269→  // ---------- Paso automático: sin jugada disponible, pasas solo (como en la mesa real) ----------
+   270→   270→  useEffect(() => {
+   271→   271→    if (!state || state.phase !== 'playing' || state.turn !== 0) return
+   272→   272→    if (state.chain.length === 0) return // la apertura siempre tiene la ficha obligatoria
+   273→   273→    if (playableIds.size > 0) return
+   274→   274→    const timer = setTimeout(() => {
+   275→   275→      dispatch({ type: 'APPLY_PASS', player: 0 })
+   276→   276→      playSfx('pass')
+   277→   277→    }, AUTO_PASS_DELAY)
+   278→   278→    return () => clearTimeout(timer)
+   279→   279→  }, [state, playableIds])
+   280→   280→
+   281→   281→  const autoPassing =
+   282→   282→    myTurn && !!state && state.phase === 'playing' && state.chain.length > 0 && playableIds.size === 0
+   283→   283→
+   284→   284→  const ends = state ? getEnds(state.chain) : null
+   285→   285→  const botCounts: [number, number, number] = state
+   286→   286→    ? [state.hands[1].length, state.hands[2].length, state.hands[3].length]
+   287→   287→    : [7, 7, 7]
+   288→   288→  const activeSeat = state && state.phase === 'playing' ? state.turn : null
+   289→   289→
+   290→   290→  const statusText = useMemo(() => {
+   291→   291→    if (!state) return ''
+   292→   292→    if (state.phase === 'finished') return 'Partida terminada'
+   293→   293→    if (state.turn === 0) {
+   294→   294→      if (state.chain.length === 0 && state.requiredFirstTileId !== null) {
+   295→   295→        const required = state.hands[0].find((t) => t.id === state.requiredFirstTileId)
+   296→   296→        return required
+   297→   297→          ? `Es tu turno · abre la cadena con [${required.a}|${required.b}]`
+   298→   298→          : 'Es tu turno'
+   299→   299→      }
+   300→   300→      return playableIds.size > 0
+   301→   301→        ? 'Es tu turno · toca una ficha o arrástrala a la mesa'
+   302→   302→        : 'Es tu turno · sin jugada · pasas turno automáticamente…'
+   303→   303→    }
+   304→   304→    return `Turno de ${SEAT_NAMES[state.turn]}…`
+   305→   305→  }, [state, playableIds.size])
+   306→   306→
+   307→   307→  // ---------- Acciones ----------
+   308→   308→  const startGame = useCallback(() => {
+   309→   309→    setShakeTileId(null)
+   310→   310→    updateDrag(null)
+   311→   311→    prevPhaseRef.current = 'playing'
+   312→   312→    dispatch({ type: 'SET_GAME', state: createGame() })
+   313→   313→    playSfx('deal')
+   314→   314→  }, [updateDrag])
+   315→   315→
+   316→   316→  const playTile = useCallback((tile: Tile, side: Side) => {
+   317→   317→    setShakeTileId(null)
+   318→   318→    dispatch({ type: 'APPLY_PLAY', player: 0, tileId: tile.id, side })
+   319→   319→    playSfx('click')
+   320→   320→  }, [])
+   321→   321→
+   322→   322→  const handleTileClick = useCallback(
+   323→   323→    (tile: Tile) => {
+   324→   324→      // Un arrastre que termina sobre la propia ficha no cuenta como toque
+   325→   325→      if (suppressClickRef.current) {
+   326→   326→        suppressClickRef.current = false
+   327→   327→        return
+   328→   328→      }
+   329→   329→      if (!state || state.phase !== 'playing') return
+   330→   330→      if (state.turn !== 0) {
+   331→   331→        toast.info('No es tu turno.', { description: 'Espera a que jueguen los bots.' })
+   332→   332→        return
+   333→   333→      }
+   334→   334→      if (
+   335→   335→        state.chain.length === 0 &&
+   336→   336→        state.requiredFirstTileId !== null &&
+   337→   337→        tile.id !== state.requiredFirstTileId
+   338→   338→      ) {
+   339→   339→        const required = state.hands[0].find((t) => t.id === state.requiredFirstTileId)
+   340→   340→        if (required) {
+   341→   341→          toast.warning('Apertura obligatoria', {
+   342→   342→            description: `Debes abrir la cadena con el doble más alto [${required.a}|${required.b}].`,
+   343→   343→          })
+   344→   344→          return
+   345→   345→        }
+   346→   346→      }
+   347→   347→      const sides = sidesFor(tile, state.chain)
+   348→   348→      if (sides.length === 0) {
+   349→   349→        setShakeTileId(tile.id)
+   350→   350→        window.setTimeout(() => setShakeTileId((current) => (current === tile.id ? null : current)), 450)
+   351→   351→        toast.error('Esa ficha no encaja en ningún extremo de la cadena.')
+   352→   352→        return
+   353→   353→      }
+   354→   354→      if (sides.length === 1) {
+   355→   355→        playTile(tile, sides[0])
+   356→   356→      } else {
+   357→   357→        // Encaja en ambos extremos: como en la mesa real, la arrastras al lado que quieras
+   358→   358→        toast.info('Esa ficha encaja en los dos extremos.', {
+   359→   359→          description: 'Arrástrala hacia la mesa y suéltala en el extremo que prefieras.',
+   360→   360→        })
+   361→   361→      }
+   362→   362→    },
+   363→   363→    [state, playTile],
+   364→   364→  )
+   365→   365→
+   366→   366→  // ---------- Drag: listeners globales (se montan una vez, leen refs) ----------
+   367→   367→  useEffect(() => {
+   368→   368→    const applyMove = () => {
+   369→   369→      rafRef.current = 0
+   370→   370→      const point = pendingPointRef.current
+   371→   371→      const d = dragRef.current
+   372→   372→      if (!point || !d) return
+   373→   373→      const active = d.active || Math.hypot(point.x - d.startX, point.y - d.startY) > DRAG_THRESHOLD
+   374→   374→      const hover = active ? hitTestSide(zonesRef.current, point.x, point.y, d.sides) : null
+   375→   375→      updateDrag({ ...d, x: point.x, y: point.y, active, hover })
+   376→   376→    }
+   377→   377→    const onMove = (e: PointerEvent) => {
+   378→   378→      if (!dragRef.current) return
+   379→   379→      pendingPointRef.current = { x: e.clientX, y: e.clientY }
+   380→   380→      if (!rafRef.current) rafRef.current = requestAnimationFrame(applyMove)
+   381→   381→    }
+   382→   382→    const onUp = (e: PointerEvent) => {
+   383→   383→      const d = dragRef.current
+   384→   384→      if (!d) return
+   385→   385→      if (rafRef.current) {
+   386→   386→        cancelAnimationFrame(rafRef.current)
+   387→   387→        rafRef.current = 0
+   388→   388→      }
+   389→   389→      const point = pendingPointRef.current ?? { x: e.clientX, y: e.clientY }
+   390→   390→      const moved = d.active || Math.hypot(point.x - d.startX, point.y - d.startY) > DRAG_THRESHOLD
+   391→   391→      if (moved) {
+   392→   392→        // El click que pueda generarse tras un arrastre real no cuenta como toque
+   393→   393→        suppressClickRef.current = true
+   394→   394→        window.setTimeout(() => {
+   395→   395→          suppressClickRef.current = false
+   396→   396→        }, 300)
+   397→   397→        const hover = hitTestSide(zonesRef.current, point.x, point.y, d.sides)
+   398→   398→        if (hover) {
+   399→   399→          playTile(d.tile, hover)
+   400→   400→        } else {
+   401→   401→          toast.info('Suelta la ficha sobre un extremo iluminado de la mesa.')
+   402→   402→        }
+   403→   403→      }
+   404→   404→      pendingPointRef.current = null
+   405→   405→      zonesRef.current = null
+   406→   406→      updateDrag(null)
+   407→   407→    }
+   408→   408→    const onCancel = () => {
+   409→   409→      if (rafRef.current) {
+   410→   410→        cancelAnimationFrame(rafRef.current)
+   411→   411→        rafRef.current = 0
+   412→   412→      }
+   413→   413→      pendingPointRef.current = null
+   414→   414→      zonesRef.current = null
+   415→   415→      if (dragRef.current) updateDrag(null)
+   416→   416→    }
+   417→   417→    window.addEventListener('pointermove', onMove)
+   418→   418→    window.addEventListener('pointerup', onUp)
+   419→   419→    window.addEventListener('pointercancel', onCancel)
+   420→   420→    return () => {
+   421→   421→      window.removeEventListener('pointermove', onMove)
+   422→   422→      window.removeEventListener('pointerup', onUp)
+   423→   423→      window.removeEventListener('pointercancel', onCancel)
+   424→   424→    }
+   425→   425→  }, [playTile, updateDrag])
+   426→   426→
+   427→   427→  const beginDrag = useCallback(
+   428→   428→    (e: React.PointerEvent, tile: Tile, sides: Side[]) => {
+   429→   429→      if (dragRef.current) return
+   430→   430→      if (e.pointerType === 'mouse' && e.button !== 0) return
+   431→   431→      zonesRef.current = collectDropZones(!!state && state.chain.length > 0)
+   432→   432→      updateDrag({
+   433→   433→        tile,
+   434→   434→        sides,
+   435→   435→        startX: e.clientX,
+   436→   436→        startY: e.clientY,
+   437→   437→        x: e.clientX,
+   438→   438→        y: e.clientY,
+   439→   439→        active: false,
+   440→   440→        hover: null,
+   441→   441→      })
+   442→   442→    },
+   443→   443→    [state, updateDrag],
+   444→   444→  )
+   445→   445→
+   446→   446→  const handleLeave = useCallback(() => {
+   447→   447→    setConfirmLeave(false)
+   448→   448→    dispatch({ type: 'RESET' })
+   449→   449→    updateDrag(null)
+   450→   450→    prevPhaseRef.current = null
+   451→   451→    toast.info('Saliste de la partida.')
+   452→   452→  }, [updateDrag])
+   453→   453→
+   454→   454→  /** Feedback de zonas de suelta para la mesa (solo mientras se arrastra de verdad) */
+   455→   455→  const dropHint = useMemo(() => {
+   456→   456→    if (!drag?.active) return null
+   457→   457→    return {
+   458→   458→      left: drag.sides.includes('left'),
+   459→   459→      right: drag.sides.includes('right'),
+   460→   460→      hover: drag.hover,
+   461→   461→    }
+   462→   462→  }, [drag])
+   463→   463→
+   464→   464→  return (
+   465→   465→    <div className="domino-bg flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
+   466→   466→      {/* Encabezado */}
+   467→   467→      <header className="sticky top-0 z-40 border-b border-white/5 bg-zinc-950/90 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/75">
+   468→   468→        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3">
+   469→   469→          <div className="flex items-center gap-2">
+   470→   470→            <span className="text-2xl" aria-hidden>
+   471→   471→              🀄
+   472→   472→            </span>
+   473→   473→            <h1 className="text-lg font-black tracking-tight sm:text-xl">
+   474→   474→              Salón de Dominó <span className="text-emerald-400">Online</span>
+   475→   475→            </h1>
+   476→   476→          </div>
+   477→   477→
+   478→   478→          <Button
+   479→   479→            variant="ghost"
+   480→   480→            size="icon"
+   481→   481→            className="h-11 w-11 text-zinc-400 hover:text-zinc-100"
+   482→   482→            onClick={() => {
+   483→   483→              setSfxMuted(!muted)
+   484→   484→            }}
+   485→   485→            aria-label={muted ? 'Activar sonido' : 'Silenciar sonido'}
+   486→   486→            aria-pressed={muted}
+   487→   487→          >
+   488→   488→            {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+   489→   489→          </Button>
+   490→   490→        </div>
+   491→   491→      </header>
+   492→   492→
+   493→   493→      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+   494→   494→        {state ? (
+   495→   495→          <div className="mx-auto w-full max-w-5xl">
+   496→   496→            {/* Estado y controles de la mesa */}
+   497→   497→            <div className="mb-4 flex flex-col items-center gap-2">
+   498→   498→              <p
+   499→   499→                aria-live="polite"
+   500→   500→                className={cn(
+   501→   501→                  'rounded-full border px-4 py-1.5 text-center text-sm font-bold shadow-lg',
+   502→   502→                  state.phase === 'finished'
+   503→   503→                    ? 'border-amber-400/60 bg-amber-400/15 text-amber-300'
+   504→   504→                    : myTurn
+   505→   505→                      ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-300'
+   506→   506→                      : 'border-white/10 bg-zinc-900/85 text-zinc-300',
+   507→   507→                  autoPassing && 'animate-pulse',
+   508→   508→                )}
+   509→   509→              >
+   510→   510→                {statusText}
+   511→   511→              </p>
+   512→   512→              <div className="flex flex-wrap items-center justify-center gap-2">
+   513→   513→                <span
+   514→   514→                  className="flex items-center gap-1.5 rounded-full border border-white/10 bg-zinc-900/85 px-3 py-1.5 text-xs font-semibold text-zinc-400 shadow"
+   515→   515→                  aria-label="Extremos de la cadena"
+   516→   516→                >
+   517→   517→                  <span>Extremos:</span>
+   518→   518→                  <span className="font-bold text-zinc-100">[ {ends ? ends.left : '—'} ]</span>
+   519→   519→                  <span aria-hidden>⟷</span>
+   520→   520→                  <span className="font-bold text-zinc-100">[ {ends ? ends.right : '—'} ]</span>
+   521→   521→                </span>
+   522→   522→                <Button
+   523→   523→                  variant="ghost"
+   524→   524→                  size="sm"
+   525→   525→                  className="min-h-9 gap-1.5 text-zinc-400 hover:bg-red-500/10 hover:text-red-400"
+   526→   526→                  onClick={() => setConfirmLeave(true)}
+   527→   527→                >
+   528→   528→                  <LogOut className="h-4 w-4" aria-hidden />
+   529→   529→                  Salir
+   530→   530→                </Button>
+   531→   531→              </div>
+   532→   532→            </div>
+   533→   533→
+   534→   534→            {/* Rivales alrededor de la mesa: perfiles y sus fichas en mano, FUERA del fieltro.
+   535→   535→                ORDEN DE JUEGO: desde la primera ficha, el turno pasa SIEMPRE a la DERECHA de cada jugador:
+   536→   536→                Tú(abajo) → Kira(derecha) → Max(frente) → Lola(izquierda) → Tú */}
+   537→   537→            <div className="mb-2 flex items-end justify-between gap-1 md:mb-3 md:justify-center">
+   538→   538→              <Seat
+   539→   539→                seat={1}
+   540→   540→                count={botCounts[0]}
+   541→   541→                active={activeSeat === 1}
+   542→   542→                className="md:hidden"
+   543→   543→              />
+   544→   544→              <Seat seat={2} count={botCounts[1]} active={activeSeat === 2} />
+   545→   545→              <Seat
+   546→   546→                seat={3}
+   547→   547→                count={botCounts[2]}
+   548→   548→                active={activeSeat === 3}
+   549→   549→                className="md:hidden"
+   550→   550→              />
+   551→   551→            </div>
+   552→   552→
+   553→   553→            <div className="flex items-center justify-center gap-2 sm:gap-4">
+   554→   554→              {/* Lola a la izquierda (escritorio): recibe el turno desde el frente y lo devuelve a Tú */}
+   555→   555→              <Seat
+   556→   556→                seat={1}
+   557→   557→                count={botCounts[0]}
+   558→   558→                active={activeSeat === 1}
+   559→   559→                className="hidden shrink-0 md:flex"
+   560→   560→              />
+   561→   561→
+   562→   562→              <div className="min-w-0 flex-1">
+   563→   563→                {/* Mesa rústica de madera con panel de cristal: sobre él SOLO las fichas jugadas */}
+   564→   564→                <div className="mesa-wood relative select-none rounded-[2rem] border-[6px] border-[#3a2412] p-3.5 sm:rounded-[2.75rem] sm:border-8 sm:p-5">
+   565→   565→                  <CornerCups />
+   566→   566→                  <div className="mesa-panel relative flex min-h-[400px] items-center justify-center overflow-hidden rounded-[1.5rem] p-3 sm:min-h-[440px] sm:rounded-[2rem] sm:p-4">
+   567→   567→                    <FlagPanel visible={flagVisible || !!state} />
+   568→   568→                    <BoardChain chain={state.chain} dropHint={dropHint} />
+   569→   569→                  </div>
+   570→   570→                </div>
+   571→   571→
+   572→   572→                {/* Tu perfil y tu mano, fuera de la mesa */}
+   573→   573→                <section aria-label="Tus fichas" className="relative z-20 -mt-2 px-2 sm:-mt-3">
+   574→   574→                  <div className="mx-auto flex w-fit max-w-full flex-wrap items-end justify-center gap-x-2.5 gap-y-3">
+   575→   575→                    <Seat
+   576→   576→                      seat={0}
+   577→   577→                      count={state.hands[0].length}
+   578→   578→                      active={myTurn}
+   579→   579→                      hideStack
+   580→   580→                      className="mr-1 self-end"
+   581→   581→                    />
+   582→   582→                    {state.hands[0].map((tile, index) => {
+   583→   583→                      const isPlayable = playableIds.has(tile.id)
+   584→   584→                      const tileSides = playableInfo.sides.get(tile.id)
+   585→   585→                      return (
+   586→   586→                        <motion.div
+   587→   587→                          key={tile.id}
+   588→   588→                          initial={{ opacity: 0, y: 26, scale: 0.75 }}
+   589→   589→                          animate={{ opacity: 1, y: 0, scale: 1 }}
+   590→   590→                          transition={{
+   591→   591→                            delay: index * 0.045,
+   592→   592→                            type: 'spring',
+   593→   593→                            stiffness: 420,
+   594→   594→                            damping: 26,
+   595→   595→                          }}
+   596→   596→                          onPointerDown={
+   597→   597→                            myTurn && tileSides ? (e) => beginDrag(e, tile, tileSides) : undefined
+   598→   598→                          }
+   599→   599→                          className={cn(
+   600→   600→                            myTurn && tileSides && 'touch-none',
+   601→   601→                            drag?.active && drag.tile.id === tile.id && 'opacity-30',
+   602→   602→                          )}
+   603→   603→                        >
+   604→   604→                          <DominoTile
+   605→   605→                            size="lg"
+   606→   606→                            top={tile.a}
+   607→   607→                            bottom={tile.b}
+   608→   608→                            playable={isPlayable}
+   609→   609→                            disabled={!isPlayable}
+   610→   610→                            highlight={
+   611→   611→                              state.chain.length === 0 &&
+   612→   612→                              state.requiredFirstTileId === tile.id &&
+   613→   613→                              state.starter === 0
+   614→   614→                            }
+   615→   615→                            onClick={() => handleTileClick(tile)}
+   616→   616→                            className={cn(shakeTileId === tile.id && 'domino-shake')}
+   617→   617→                            ariaLabel={`Ficha ${tile.a} y ${tile.b}${isPlayable ? ', jugable' : ''}`}
+   618→   618→                          />
+   619→   619→                        </motion.div>
+   620→   620→                      )
+   621→   621→                    })}
+   622→   622→                  </div>
+   623→   623→                </section>
+   624→   624→              </div>
+   625→   625→
+   626→   626→              {/* Kira a la derecha (escritorio): recibe el turno de Tú — el juego corre hacia la derecha */}
+   627→   627→              <Seat
+   628→   628→                seat={3}
+   629→   629→                count={botCounts[2]}
+   630→   630→                active={activeSeat === 3}
+   631→   631→                className="hidden shrink-0 md:flex"
+   632→   632→              />
+   633→   633→            </div>
+   634→   634→
+   635→   635→            {/* Bitácora */}
+   636→   636→            <div className="mt-6">
+   637→   637→              <GameLog entries={state.log} />
+   638→   638→            </div>
+   639→   639→          </div>
+   640→   640→        ) : (
+   641→   641→          /* Mesa vacía: intro cinematográfica (rayo + fichas) e invitación a jugar */
+   642→   642→          <div className="mx-auto w-full max-w-3xl">
+   643→   643→            <div className="mesa-wood relative select-none rounded-[2rem] border-[6px] border-[#3a2412] p-3.5 sm:rounded-[2.75rem] sm:border-8 sm:p-5">
+   644→   644→              <CornerCups />
+   645→   645→              <div className="mesa-panel relative min-h-[400px] overflow-hidden rounded-[1.5rem] sm:min-h-[440px] sm:rounded-[2rem]">
+   646→   646→                <FlagPanel visible={flagVisible} />
+   647→   647→                <TableIntro
+   648→   648→                  onPhaseChange={(p) => setFlagVisible(p === 'bolt' || p === 'crack' || p === 'ready')}
+   649→   649→                >
+   650→   650→                  <button
+   651→   651→                    onClick={startGame}
+   652→   652→                    className="group flex flex-col items-center gap-1.5 rounded-2xl outline-none transition-transform duration-150 hover:-rotate-1 hover:scale-[1.04] focus-visible:ring-2 focus-visible:ring-purple-200 active:translate-y-[3px] active:scale-[0.99]"
+   653→   653→                    aria-label="Jugar una partida de dominó"
+   654→   654→                  >
+   655→   655→                    <span className="relative block">
+   656→   656→                      {/* placa estilo cómic: silueta dentada, sombra dura y borde grueso */}
+   657→   657→                      <svg viewBox="0 0 320 124" className="w-64 sm:w-72" aria-hidden>
+   658→   658→                        {/* sombra dura desplazada */}
+   659→   659→                        <path
+   660→   660→                          d={BADGE_PATH}
+   661→   661→                          transform="translate(8 9)"
+   662→   662→                          fill="#2e0a49"
+   663→   663→                        />
+   664→   664→                        {/* placa morada con contorno grueso */}
+   665→   665→                        <path
+   666→   666→                          d={BADGE_PATH}
+   667→   667→                          fill="#a855f7"
+   668→   668→                          stroke="#3b0764"
+   669→   669→                          strokeWidth="6"
+   670→   670→                          strokeLinejoin="round"
+   671→   671→                        />
+   672→   672→                        {/* muescas cómic dentro de la placa */}
+   673→   673→                        <g
+   674→   674→                          stroke="#3b0764"
+   675→   675→                          strokeWidth="3"
+   676→   676→                          strokeLinecap="round"
+   677→   677→                          opacity="0.85"
+   678→   678→                        >
+   679→   679→                          <path d="M50 32 l14 -9" />
+   680→   680→                          <path d="M266 32 l12 8" />
+   681→   681→                          <path d="M38 78 l12 8" />
+   682→   682→                        </g>
+   683→   683→                      </svg>
+   684→   684→                      <span
+   685→   685→                        aria-hidden
+   686→   686→                        className="absolute inset-x-0 top-0 bottom-[10px] flex items-center justify-center text-[26px] font-black uppercase tracking-[0.06em] text-[#3b0764] sm:text-[30px]"
+   687→   687→                      >
+   688→   688→                        Jugar
+   689→   689→                      </span>
+   690→   690→                    </span>
+   691→   691→                    <span className="text-[11px] font-semibold text-purple-100/85 sm:text-xs">
+   692→   692→                      4 jugadores · el doble más alto abre la partida
+   693→   693→                    </span>
+   694→   694→                  </button>
+   695→   695→                </TableIntro>
+   696→   696→              </div>
+   697→   697→            </div>
+   698→   698→
+   699→   699→            <p className="mt-4 text-center text-sm text-zinc-500">
+   700→   700→              El turno corre hacia la derecha: Tú → Kira → Max → Lola
+   701→   701→            </p>
+   702→   702→          </div>
+   703→   703→        )}
+   704→   704→      </main>
+   705→   705→
+   706→   706→      {/* Pie pegado al fondo */}
+   707→   707→      <footer className="mt-auto border-t border-white/5 bg-zinc-950 py-4">
+   708→   708→        <p className="px-4 text-center text-xs text-zinc-600">
+   709→   709→          🀄 Salón de Dominó · Juego clásico de dominó para 4 jugadores
+   710→   710→        </p>
+   711→   711→      </footer>
+   712→   712→
+   713→   713→      {/* Ficha fantasma que sigue al puntero mientras se arrastra hacia la mesa */}
+   714→   714→      {drag?.active && (
+   715→   715→        <div
+   716→   716→          className="pointer-events-none fixed z-[70]"
+   717→   717→          style={{
+   718→   718→            left: drag.x,
+   719→   719→            top: drag.y,
+   720→   720→            transform: 'translate(-50%, -70%) rotate(-5deg) scale(1.08)',
+   721→   721→          }}
+   722→   722→          aria-hidden
+   723→   723→        >
+   724→   724→          <DominoTile
+   725→   725→            size="lg"
+   726→   726→            top={drag.tile.a}
+   727→   727→            bottom={drag.tile.b}
+   728→   728→            className="shadow-[0_18px_32px_rgba(0,0,0,0.5)]"
+   729→   729→          />
+   730→   730→        </div>
+   731→   731→      )}
+   732→   732→
+   733→   733→      {/* Diálogos */}
+   734→   734→      <ResultDialog
+   735→   735→        open={!!state && state.phase === 'finished' && !!state.outcome}
+   736→   736→        outcome={state?.outcome ?? null}
+   737→   737→        onReplay={startGame}
+   738→   738→        onClose={() => dispatch({ type: 'RESET' })}
+   739→   739→      />
+   740→   740→
+   741→   741→      <AlertDialog open={confirmLeave} onOpenChange={setConfirmLeave}>
+   742→   742→        <AlertDialogContent className="border-zinc-700 bg-zinc-900">
+   743→   743→          <AlertDialogHeader>
+   744→   744→            <AlertDialogTitle className="text-zinc-100">¿Abandonar la partida?</AlertDialogTitle>
+   745→   745→            <AlertDialogDescription>
+   746→   746→              Si sales ahora la partida en curso se perderá. Podrás empezar otra cuando quieras.
+   747→   747→            </AlertDialogDescription>
+   748→   748→          </AlertDialogHeader>
+   749→   749→          <AlertDialogFooter>
+   750→   750→            <AlertDialogCancel className="border-zinc-700 bg-transparent text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100">
+   751→   751→              Seguir jugando
+   752→   752→            </AlertDialogCancel>
+   753→   753→            <AlertDialogAction onClick={handleLeave} className="bg-red-600 text-white hover:bg-red-500">
+   754→   754→              Abandonar
+   755→   755→            </AlertDialogAction>
+   756→   756→          </AlertDialogFooter>
+   757→   757→        </AlertDialogContent>
+   758→   758→      </AlertDialog>
+   759→   759→    </div>
+   760→   760→  )
+   761→   761→}
+   762→   762→

@@ -688,7 +688,7 @@ export default function DominoPage() {
                         Jugar
                       </span>
                     </span>
-                    <span className="text-[11px] font-semibold text-purple-100/85 sm:text-xs">
+                    <span className="text-[11px] font-semibold text-purple-100/85 [text-shadow:0_1px_2px_rgba(0,0,0,0.95),0_0_8px_rgba(0,0,0,0.8)] sm:text-xs">
                       4 jugadores · el doble más alto abre la partida
                     </span>
                   </button>
