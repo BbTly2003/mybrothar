@@ -205,3 +205,19 @@ Work Log:
 Stage Summary:
 - Desde la primera ficha, el juego continúa SIEMPRE hacia la DERECHA: Tú → Kira(derecha) → Max(frente) → Lola(izquierda) → Tú, verificado dos vueltas completas por bitácora. Posiciones de asientos y mesas intactas; motor sin más cambios.
 - El saldo y el historial reales del usuario se conservaron (1400 tokens, 1 victoria +400); solo se revirtió la apuesta de la partida de prueba del agente.
+
+---
+Task ID: 11
+Agent: Z.ai Code (main agent)
+Task: "el doble 6 es totalmente aleatorio al inicio de la partida, no quiero que nadie tenga ventajas en el juego" — auditar y demostrar la equidad del reparto y de quién abre
+
+Work Log:
+- Auditoría de engine.ts: baraja = Fisher–Yates con Math.random (uniforme, sin sesgo); las 28 fichas SIEMPRE se reparten 7×4 (no hay montón); quien abre es el tenedor del doble más alto (casi siempre [6|6], que al repartirse todo el mazo siempre está en alguna mano); los bots solo leen su propia mano (sin espionaje ni colusión); bloqueo resuelto por mano más ligera (simétrico).
+- Simulación de equidad con el CÓDIGO REAL (bun, import de createGame): 40.000 repartos.
+  * Quién abre / tenedor del [6|6]: Tú 24.71% · Lola 25.37% · Max 25.07% · Kira 24.84% (esperado 25% cada uno; desviaciones dentro del ruido muestral σ≈0.22%). Distribución del tenedor idéntica a la del que abre → coherente (el doble más alto siempre existe porque se reparten las 28 fichas).
+  * Calidad de mano: pips promedio 41.997 / 42.016 / 41.993 / 41.995 (esperado 42.000 = 168/4) — manos equivalentes para todos.
+- Conclusión: ningún asiento tiene ventaja; quien abre depende 100% del azar del reparto. Sin cambios de código (el sistema ya era justo).
+- Nota: script de simulación temporal creado y borrado en la raíz del proyecto; sin llamadas a APIs ni a la BD (estado del usuario intacto: 1400 tokens, 1 victoria).
+
+Stage Summary:
+- Equidad demostrada empíricamente con el código de producción: reparto aleatorio uniforme, ~25% para cada jugador de recibir el doble 6 y abrir, manos de igual calidad media, bots sin información privilegiada. No se modificó ningún archivo de juego.
