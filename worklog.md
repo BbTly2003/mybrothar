@@ -401,3 +401,24 @@ Stage Summary:
 - public/bandera-panel.png = bandera de CUBA (triángulo rojo + estrella blanca + franjas azul/blanco) estilo humo sobre negro; respaldo de la de PR en /tmp/bandera-panel-pr-backup.png.
 - Flujo confirmado en navegador: la bandera permanece oculta durante la lluvia de fichas y se ilumina con el fogonazo del rayo (opacity 0→1 entre bolt y ready); en la partida siempre visible.
 - Sin cambios en reducer.ts, rotación (player+3)%4, fichas SVG ni motor; solo imagen regenerada + text-shadow del subtítulo.
+
+---
+Task ID: 21
+Agent: Z.ai Code (principal)
+Task: «los dominos no me gustan me gustaria que se vieran mas reales» — realismo físico de las fichas
+
+Work Log:
+- Reescrito TileFace en src/components/domino/domino-tile.tsx (API/props/clases del botón intactas; reducer, rotación y motor sin tocar):
+  · CANTO 3D: capa inferior desplazada (THICK=2.6 unidades SVG) con gradiente userSpaceOnUse → grosor real visible bajo la cara + línea de luz de rebote en el canto.
+  · Puntos TALADRADOS (renderPip, módulo-scope): anillo de cráter grabado, labio superior iluminado (arco A sweep 1), agujero con pared lejana iluminada abajo-derecha (gradiente radial cx .62 cy .66), sombra interna dura arriba (arco oscuro) y brillo especular.
+  · Clavo central (renderSpinner) de LATÓN: radial #ffe9a8→#d9ab4e→#8a6420 + anillo de mecanizado + brillo.
+  · Ranura divisoria más profunda (sombra suave + corte + luz que rebota).
+  · Material marfil: lavado frío arriba, calidez de subsuelo abajo, grano fractal 0.13, sheen reducido y BANDA DE REFLEJO diagonal (2 elipses rotadas −14° recortadas con clipPath).
+  · Reverso: marca esmeralda engastada con anillo grabado.
+- ESLint (react-compiler) rechazó componentes creados en render → Pip/Spinner movidos a funciones puras renderPip/renderSpinner a nivel de módulo, invocadas con <Fragment key>.
+- Ajuste tras inspección con zoom 3×: el reflejo quemaba la mitad superior → streak 0.42→0.30, ry 0.17→0.15, coolTop 0.3→0.2.
+- Verificado en navegador: zoom 3× en mano y cadena (pips con profundidad, latón, canto), intro con 28 fichas xs/sm correctas, partida funcionando, móvil OK, 0 errores, lint limpio.
+
+Stage Summary:
+- Fichas con apariencia física real: grosor de canto, agujeros taladrados con luz/sombra, spinner de latón y reflejo de barniz — nitidez SVG intacta en todos los tamaños.
+- domino-tile.tsx sigue siendo la única fuente de las fichas (intro, mano, cadena y reversos usan el mismo componente).
