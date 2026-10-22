@@ -3,10 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { DominoTile } from './domino-tile'
-import type { PlacedTile } from '@/lib/game/types'
+import type { PlacedTile, Side } from '@/lib/game/types'
+import { cn } from '@/lib/utils'
 
 interface BoardChainProps {
   chain: PlacedTile[]
+  /**
+   * Feedback de arrastre: qué extremos son válidos para la ficha que se arrastra
+   * y cuál está bajo el puntero. null = nadie está arrastrando nada.
+   */
+  dropHint?: { left: boolean; right: boolean; hover: Side | null } | null
 }
 
 /** Métricas por nivel: tL = lado largo de la ficha (tS = lado corto = tL/2) */
@@ -156,7 +162,7 @@ function computeSnake(chain: PlacedTile[], W: number, budget: number): SnakeLayo
  * y organizada como en una mesa real, con dobles en cruz, esquinas perpendiculares
  * y aro esmeralda en los dos extremos abiertos (ahí es donde se puede jugar).
  */
-export function BoardChain({ chain }: BoardChainProps) {
+export function BoardChain({ chain, dropHint = null }: BoardChainProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   // Fichas ya vistas y fichas recién jugadas (patrón de ajuste de estado en render:
@@ -222,9 +228,24 @@ export function BoardChain({ chain }: BoardChainProps) {
     <div ref={wrapRef} className="w-full" role="region" aria-label="Cadena de fichas en la mesa">
       {chain.length === 0 ? (
         <div className="flex min-h-24 items-center justify-center px-3">
-          <div className="flex max-w-full items-center justify-center rounded-xl border-2 border-dashed border-white/25 px-4 py-3 text-center sm:px-6">
-            <span className="text-xs font-semibold text-white/60 sm:text-sm">
-              Mesa vacía · el doble más alto abre la cadena
+          <div
+            data-end="empty"
+            className={cn(
+              'flex max-w-full items-center justify-center rounded-xl border-2 border-dashed px-4 py-3 text-center transition-colors sm:px-6',
+              dropHint
+                ? 'animate-pulse border-emerald-300 bg-emerald-400/15 shadow-[0_0_24px_rgba(16,185,129,0.45)]'
+                : 'border-white/25',
+            )}
+          >
+            <span
+              className={cn(
+                'text-xs font-semibold sm:text-sm',
+                dropHint ? 'text-emerald-100' : 'text-white/60',
+              )}
+            >
+              {dropHint
+                ? '⬇ Suelta aquí la ficha que abre la cadena'
+                : 'Mesa vacía · el doble más alto abre la cadena'}
             </span>
           </div>
         </div>
@@ -232,11 +253,33 @@ export function BoardChain({ chain }: BoardChainProps) {
         <div className="relative w-full" style={{ height: layout.height }}>
           {layout.boxes.map((box, index) => {
             const isNew = freshIds.has(box.tile.id)
+            // Extremos abiertos de la cadena: primero (izquierdo) y último (derecho).
+            // Con una sola ficha, ella misma es ambos extremos.
+            const endRole: 'left' | 'right' | 'both' | null =
+              layout.boxes.length === 1
+                ? 'both'
+                : index === 0
+                  ? 'left'
+                  : index === layout.boxes.length - 1
+                    ? 'right'
+                    : null
+            const zoneValid =
+              !!dropHint &&
+              !!endRole &&
+              (endRole === 'both'
+                ? dropHint.left || dropHint.right
+                : endRole === 'left'
+                  ? dropHint.left
+                  : dropHint.right)
+            const zoneHovered =
+              zoneValid &&
+              (endRole === 'both' ? dropHint!.hover !== null : dropHint!.hover === endRole)
             return (
               <motion.div
                 key={box.tile.id}
                 data-testid={`snake-${index}`}
-                className="absolute"
+                data-end={endRole ?? undefined}
+                className={cn('absolute rounded-lg', zoneHovered && 'z-10 scale-110')}
                 style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
                 initial={isNew ? { opacity: 0, scale: 0.5 } : false}
                 animate={{ opacity: 1, scale: 1 }}
@@ -251,6 +294,18 @@ export function BoardChain({ chain }: BoardChainProps) {
                   style={{ width: '100%', height: '100%' }}
                   ariaLabel={`Ficha ${box.tile.left} y ${box.tile.right} en la mesa`}
                 />
+                {zoneValid && (
+                  <span
+                    className={cn(
+                      'pointer-events-none absolute inset-0 grid place-items-center rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors sm:text-[10px]',
+                      zoneHovered
+                        ? 'bg-emerald-300/55 text-emerald-950 shadow-[inset_0_0_0_3px_rgba(16,185,129,0.95)]'
+                        : 'animate-pulse bg-emerald-400/25 text-emerald-50 shadow-[inset_0_0_0_2px_rgba(52,211,153,0.85)]',
+                    )}
+                  >
+                    Aquí
+                  </span>
+                )}
               </motion.div>
             )
           })}

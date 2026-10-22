@@ -152,10 +152,12 @@ export const DominoTile = memo(function DominoTile({
         faceDown
           ? 'bg-gradient-to-b from-white to-stone-200 shadow-[0_2px_4px_rgba(0,0,0,0.4)]'
           : 'bg-gradient-to-b from-white via-white to-stone-100 text-zinc-900 shadow-[0_3px_6px_rgba(0,0,0,0.35),0_10px_18px_rgba(0,0,0,0.22)]',
+        // Jugable: SIEMPRE levantada (más que las demás) para que se vea de un vistazo
+        // qué fichas puedes jugar — como en la mesa real, sin ayuda de nadie.
         interactive &&
-          'cursor-pointer shadow-[0_0_0_2px_rgba(16,185,129,0.75),0_6px_14px_rgba(0,0,0,0.3)] hover:-translate-y-1.5 hover:shadow-[0_0_0_2px_rgba(52,211,153,0.95),0_12px_20px_rgba(0,0,0,0.3)] focus-visible:shadow-[0_0_0_2px_rgba(52,211,153,0.95)] focus-visible:outline-none',
+          'cursor-grab -translate-y-2 shadow-[0_0_0_2px_rgba(16,185,129,0.8),0_10px_20px_rgba(16,185,129,0.25),0_6px_12px_rgba(0,0,0,0.32)] hover:-translate-y-4 hover:cursor-grabbing hover:shadow-[0_0_0_2px_rgba(52,211,153,0.95),0_16px_26px_rgba(16,185,129,0.35),0_10px_18px_rgba(0,0,0,0.3)] focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_rgba(52,211,153,0.95)]',
         !interactive && 'cursor-default',
-        disabled && !faceDown && 'brightness-[0.97]',
+        disabled && !faceDown && 'brightness-[0.95]',
         highlight && 'shadow-[0_0_0_3px_#fbbf24,0_3px_6px_rgba(0,0,0,0.35)]',
         glow && !highlight && !interactive && 'shadow-[0_0_0_2px_rgba(52,211,153,0.9),0_4px_12px_rgba(16,185,129,0.45)]',
         className,

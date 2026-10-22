@@ -22,7 +22,6 @@ import { DominoTile } from '@/components/domino/domino-tile'
 import { GameLog } from '@/components/domino/game-log'
 import { ResultDialog } from '@/components/domino/result-dialog'
 import { Seat } from '@/components/domino/seat'
-import { SidePickerDialog } from '@/components/domino/side-picker-dialog'
 
 import { chooseBotMove, createGame, getEnds, sidesFor } from '@/lib/game/engine'
 import { gameReducer } from '@/lib/game/reducer'
@@ -31,15 +30,118 @@ import { SEAT_NAMES } from '@/lib/game/types'
 import { getMutedSnapshot, playSfx, setSfxMuted, subscribeMuted } from '@/lib/sfx'
 import { cn } from '@/lib/utils'
 
+// ---------- Drag & drop de fichas hacia la mesa ----------
+
+interface DragState {
+  tile: Tile
+  /** lados donde la ficha encaja ahora mismo */
+  sides: Side[]
+  startX: number
+  startY: number
+  x: number
+  y: number
+  /** true cuando el arrastre superó el umbral: aparece la ficha fantasma y las zonas de suelta */
+  active: boolean
+  /** extremo que está bajo el puntero ahora mismo */
+  hover: Side | null
+}
+
+interface DropZones {
+  left: DOMRect[]
+  right: DOMRect[]
+}
+
+/** Movimiento mínimo (px) para distinguir un arrastre de un simple toque */
+const DRAG_THRESHOLD = 6
+/** Amplitud de cada zona de suelta alrededor de su extremo (px) */
+const ZONE_PAD = 44
+/** Retardo del paso automático cuando no tienes jugada (ms) — como en la mesa real */
+const AUTO_PASS_DELAY = 1250
+
+/** Mide las zonas de suelta de la mesa: extremo izquierdo y extremo derecho de la cadena */
+function collectDropZones(chainStarted: boolean): DropZones | null {
+  if (typeof document === 'undefined') return null
+  const zones: DropZones = { left: [], right: [] }
+  if (!chainStarted) {
+    const empty = document.querySelector<HTMLElement>('[data-end="empty"]')
+    if (empty) {
+      const r = empty.getBoundingClientRect()
+      zones.left.push(r)
+      zones.right.push(r)
+    }
+    return zones.left.length > 0 ? zones : null
+  }
+  const leftEl = document.querySelector<HTMLElement>('[data-end="left"], [data-end="both"]')
+  const rightEl = document.querySelector<HTMLElement>('[data-end="right"], [data-end="both"]')
+  const lr = leftEl?.getBoundingClientRect() ?? null
+  const rr = rightEl?.getBoundingClientRect() ?? null
+  if (lr && rr && Math.abs(lr.left - rr.left) < 1 && Math.abs(lr.width - rr.width) < 1) {
+    // Con una sola ficha en la mesa ella misma es ambos extremos: mitad izquierda / mitad derecha
+    zones.left.push(new DOMRect(lr.left, lr.top, lr.width / 2, lr.height))
+    zones.right.push(new DOMRect(lr.left + lr.width / 2, lr.top, lr.width / 2, lr.height))
+    zones.left.push(new DOMRect(lr.left - 80, lr.top, 80, lr.height))
+    zones.right.push(new DOMRect(lr.right, lr.top, 80, lr.height))
+  } else {
+    if (lr) {
+      zones.left.push(lr)
+      // prolongación hacia fuera del extremo: ahí es donde apoyarías la ficha nueva
+      zones.left.push(new DOMRect(lr.left - 90, lr.top, 90, lr.height))
+    }
+    if (rr) {
+      zones.right.push(rr)
+      zones.right.push(new DOMRect(rr.right, rr.top, 90, rr.height))
+    }
+  }
+  return zones.left.length > 0 || zones.right.length > 0 ? zones : null
+}
+
+/** ¿Está el puntero sobre alguna zona de suelta válida? Devuelve el lado más cercano */
+function hitTestSide(zones: DropZones | null, x: number, y: number, sides: Side[]): Side | null {
+  if (!zones) return null
+  let best: Side | null = null
+  let bestDist = Infinity
+  for (const side of ['left', 'right'] as const) {
+    if (!sides.includes(side)) continue
+    for (const r of zones[side]) {
+      if (
+        x < r.left - ZONE_PAD ||
+        x > r.right + ZONE_PAD ||
+        y < r.top - ZONE_PAD ||
+        y > r.bottom + ZONE_PAD
+      ) {
+        continue
+      }
+      const dist = Math.abs(x - (r.left + r.width / 2))
+      if (dist < bestDist) {
+        bestDist = dist
+        best = side
+      }
+    }
+  }
+  return best
+}
+
 export default function DominoPage() {
   const [state, dispatch] = useReducer(gameReducer, null)
-  const [sidePicker, setSidePicker] = useState<{ tile: Tile; sides: Side[] } | null>(null)
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [shakeTileId, setShakeTileId] = useState<number | null>(null)
   /** El mute vive fuera de React (módulo sfx + localStorage): sin efectos ni hidratación frágil */
   const muted = useSyncExternalStore(subscribeMuted, getMutedSnapshot, () => false)
 
+  // ---------- Drag & drop ----------
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const dragRef = useRef<DragState | null>(null)
+  const zonesRef = useRef<DropZones | null>(null)
+  const suppressClickRef = useRef(false)
+  const rafRef = useRef(0)
+  const pendingPointRef = useRef<{ x: number; y: number } | null>(null)
+
   const prevPhaseRef = useRef<'playing' | 'finished' | null>(null)
+
+  const updateDrag = useCallback((d: DragState | null) => {
+    dragRef.current = d
+    setDrag(d)
+  }, [])
 
   // ---------- Sonido al terminar la partida ----------
   useEffect(() => {
@@ -80,18 +182,45 @@ export default function DominoPage() {
   // ---------- Valores derivados para la UI ----------
   const myTurn = !!state && state.phase === 'playing' && state.turn === 0
 
-  const playableIds = useMemo(() => {
-    const empty = new Set<number>()
-    if (!state || state.phase !== 'playing' || state.turn !== 0) return empty
+  const playableInfo = useMemo(() => {
+    const ids = new Set<number>()
+    const sides = new Map<number, Side[]>()
+    if (!state || state.phase !== 'playing' || state.turn !== 0) return { ids, sides }
     if (state.chain.length === 0 && state.requiredFirstTileId !== null) {
-      return state.starter === 0 ? new Set([state.requiredFirstTileId]) : empty
+      if (state.starter === 0) {
+        const t = state.hands[0].find((x) => x.id === state.requiredFirstTileId)
+        if (t) {
+          ids.add(t.id)
+          sides.set(t.id, ['right'])
+        }
+      }
+      return { ids, sides }
     }
-    return new Set(
-      state.hands[0].filter((t) => sidesFor(t, state.chain).length > 0).map((t) => t.id),
-    )
+    for (const t of state.hands[0]) {
+      const s = sidesFor(t, state.chain)
+      if (s.length > 0) {
+        ids.add(t.id)
+        sides.set(t.id, s)
+      }
+    }
+    return { ids, sides }
   }, [state])
+  const playableIds = playableInfo.ids
 
-  const canPass = myTurn && !!state && state.chain.length > 0 && playableIds.size === 0
+  // ---------- Paso automático: sin jugada disponible, pasas solo (como en la mesa real) ----------
+  useEffect(() => {
+    if (!state || state.phase !== 'playing' || state.turn !== 0) return
+    if (state.chain.length === 0) return // la apertura siempre tiene la ficha obligatoria
+    if (playableIds.size > 0) return
+    const timer = setTimeout(() => {
+      dispatch({ type: 'APPLY_PASS', player: 0 })
+      playSfx('pass')
+    }, AUTO_PASS_DELAY)
+    return () => clearTimeout(timer)
+  }, [state, playableIds])
+
+  const autoPassing =
+    myTurn && !!state && state.phase === 'playing' && state.chain.length > 0 && playableIds.size === 0
 
   const ends = state ? getEnds(state.chain) : null
   const botCounts: [number, number, number] = state
@@ -110,23 +239,22 @@ export default function DominoPage() {
           : 'Es tu turno'
       }
       return playableIds.size > 0
-        ? 'Es tu turno · toca una ficha para jugarla'
-        : 'Es tu turno · no tienes jugada disponible'
+        ? 'Es tu turno · toca una ficha o arrástrala a la mesa'
+        : 'Es tu turno · sin jugada · pasas turno automáticamente…'
     }
     return `Turno de ${SEAT_NAMES[state.turn]}…`
   }, [state, playableIds.size])
 
   // ---------- Acciones ----------
   const startGame = useCallback(() => {
-    setSidePicker(null)
     setShakeTileId(null)
+    updateDrag(null)
     prevPhaseRef.current = 'playing'
     dispatch({ type: 'SET_GAME', state: createGame() })
     playSfx('deal')
-  }, [])
+  }, [updateDrag])
 
   const playTile = useCallback((tile: Tile, side: Side) => {
-    setSidePicker(null)
     setShakeTileId(null)
     dispatch({ type: 'APPLY_PLAY', player: 0, tileId: tile.id, side })
     playSfx('click')
@@ -134,6 +262,11 @@ export default function DominoPage() {
 
   const handleTileClick = useCallback(
     (tile: Tile) => {
+      // Un arrastre que termina sobre la propia ficha no cuenta como toque
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false
+        return
+      }
       if (!state || state.phase !== 'playing') return
       if (state.turn !== 0) {
         toast.info('No es tu turno.', { description: 'Espera a que jueguen los bots.' })
@@ -162,26 +295,112 @@ export default function DominoPage() {
       if (sides.length === 1) {
         playTile(tile, sides[0])
       } else {
-        setSidePicker({ tile, sides })
+        // Encaja en ambos extremos: como en la mesa real, la arrastras al lado que quieras
+        toast.info('Esa ficha encaja en los dos extremos.', {
+          description: 'Arrástrala hacia la mesa y suéltala en el extremo que prefieras.',
+        })
       }
     },
     [state, playTile],
   )
 
-  const handlePass = useCallback(() => {
-    if (!myTurn) return
-    dispatch({ type: 'APPLY_PASS', player: 0 })
-    playSfx('pass')
-    toast.info('Pasaste tu turno.')
-  }, [myTurn])
+  // ---------- Drag: listeners globales (se montan una vez, leen refs) ----------
+  useEffect(() => {
+    const applyMove = () => {
+      rafRef.current = 0
+      const point = pendingPointRef.current
+      const d = dragRef.current
+      if (!point || !d) return
+      const active = d.active || Math.hypot(point.x - d.startX, point.y - d.startY) > DRAG_THRESHOLD
+      const hover = active ? hitTestSide(zonesRef.current, point.x, point.y, d.sides) : null
+      updateDrag({ ...d, x: point.x, y: point.y, active, hover })
+    }
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current) return
+      pendingPointRef.current = { x: e.clientX, y: e.clientY }
+      if (!rafRef.current) rafRef.current = requestAnimationFrame(applyMove)
+    }
+    const onUp = (e: PointerEvent) => {
+      const d = dragRef.current
+      if (!d) return
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = 0
+      }
+      const point = pendingPointRef.current ?? { x: e.clientX, y: e.clientY }
+      const moved = d.active || Math.hypot(point.x - d.startX, point.y - d.startY) > DRAG_THRESHOLD
+      if (moved) {
+        // El click que pueda generarse tras un arrastre real no cuenta como toque
+        suppressClickRef.current = true
+        window.setTimeout(() => {
+          suppressClickRef.current = false
+        }, 300)
+        const hover = hitTestSide(zonesRef.current, point.x, point.y, d.sides)
+        if (hover) {
+          playTile(d.tile, hover)
+        } else {
+          toast.info('Suelta la ficha sobre un extremo iluminado de la mesa.')
+        }
+      }
+      pendingPointRef.current = null
+      zonesRef.current = null
+      updateDrag(null)
+    }
+    const onCancel = () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = 0
+      }
+      pendingPointRef.current = null
+      zonesRef.current = null
+      if (dragRef.current) updateDrag(null)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onCancel)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onCancel)
+    }
+  }, [playTile, updateDrag])
+
+  const beginDrag = useCallback(
+    (e: React.PointerEvent, tile: Tile, sides: Side[]) => {
+      if (dragRef.current) return
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      zonesRef.current = collectDropZones(!!state && state.chain.length > 0)
+      updateDrag({
+        tile,
+        sides,
+        startX: e.clientX,
+        startY: e.clientY,
+        x: e.clientX,
+        y: e.clientY,
+        active: false,
+        hover: null,
+      })
+    },
+    [state, updateDrag],
+  )
 
   const handleLeave = useCallback(() => {
     setConfirmLeave(false)
     dispatch({ type: 'RESET' })
-    setSidePicker(null)
+    updateDrag(null)
     prevPhaseRef.current = null
     toast.info('Saliste de la partida.')
-  }, [])
+  }, [updateDrag])
+
+  /** Feedback de zonas de suelta para la mesa (solo mientras se arrastra de verdad) */
+  const dropHint = useMemo(() => {
+    if (!drag?.active) return null
+    return {
+      left: drag.sides.includes('left'),
+      right: drag.sides.includes('right'),
+      hover: drag.hover,
+    }
+  }, [drag])
 
   return (
     <div className="domino-bg flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
@@ -226,6 +445,7 @@ export default function DominoPage() {
                     : myTurn
                       ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-300'
                       : 'border-white/10 bg-zinc-900/85 text-zinc-300',
+                  autoPassing && 'animate-pulse',
                 )}
               >
                 {statusText}
@@ -240,14 +460,6 @@ export default function DominoPage() {
                   <span aria-hidden>⟷</span>
                   <span className="font-bold text-zinc-100">[ {ends ? ends.right : '—'} ]</span>
                 </span>
-                {canPass && (
-                  <Button
-                    onClick={handlePass}
-                    className="min-h-9 animate-pulse rounded-full bg-amber-400 px-4 text-xs font-black text-zinc-950 shadow-[0_6px_16px_rgba(251,191,36,0.4)] hover:bg-amber-300"
-                  >
-                    ⏭ Pasar turno
-                  </Button>
-                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -292,7 +504,7 @@ export default function DominoPage() {
                 {/* Mesa estilo Plato: sobre el fieltro SOLO las fichas jugadas */}
                 <div className="plato-table relative select-none rounded-[2rem] border-[6px] border-emerald-800 p-[6px] sm:rounded-[2.75rem] sm:border-8 sm:p-2">
                   <div className="plato-felt relative flex min-h-[400px] items-center justify-center overflow-hidden rounded-[1.5rem] p-3 sm:min-h-[440px] sm:rounded-[2rem] sm:p-4">
-                    <BoardChain chain={state.chain} />
+                    <BoardChain chain={state.chain} dropHint={dropHint} />
                   </div>
                 </div>
 
@@ -308,6 +520,7 @@ export default function DominoPage() {
                     />
                     {state.hands[0].map((tile, index) => {
                       const isPlayable = playableIds.has(tile.id)
+                      const tileSides = playableInfo.sides.get(tile.id)
                       return (
                         <motion.div
                           key={tile.id}
@@ -319,6 +532,13 @@ export default function DominoPage() {
                             stiffness: 420,
                             damping: 26,
                           }}
+                          onPointerDown={
+                            myTurn && tileSides ? (e) => beginDrag(e, tile, tileSides) : undefined
+                          }
+                          className={cn(
+                            myTurn && tileSides && 'touch-none',
+                            drag?.active && drag.tile.id === tile.id && 'opacity-30',
+                          )}
                         >
                           <DominoTile
                             size="lg"
@@ -408,16 +628,27 @@ export default function DominoPage() {
         </p>
       </footer>
 
-      {/* Diálogos */}
-      <SidePickerDialog
-        open={sidePicker !== null}
-        tile={sidePicker?.tile ?? null}
-        sides={sidePicker?.sides ?? []}
-        chainEnds={ends}
-        onChoose={(side) => sidePicker && playTile(sidePicker.tile, side)}
-        onCancel={() => setSidePicker(null)}
-      />
+      {/* Ficha fantasma que sigue al puntero mientras se arrastra hacia la mesa */}
+      {drag?.active && (
+        <div
+          className="pointer-events-none fixed z-[70]"
+          style={{
+            left: drag.x,
+            top: drag.y,
+            transform: 'translate(-50%, -70%) rotate(-5deg) scale(1.08)',
+          }}
+          aria-hidden
+        >
+          <DominoTile
+            size="lg"
+            top={drag.tile.a}
+            bottom={drag.tile.b}
+            className="shadow-[0_18px_32px_rgba(0,0,0,0.5)]"
+          />
+        </div>
+      )}
 
+      {/* Diálogos */}
       <ResultDialog
         open={!!state && state.phase === 'finished' && !!state.outcome}
         outcome={state?.outcome ?? null}
