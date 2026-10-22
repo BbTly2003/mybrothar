@@ -277,3 +277,23 @@ Work Log:
 
 Stage Summary:
 - Las fichas ahora se ven como las de la foto: marfil real, puntos azul noche, divisoria grabada con clavo central, bisel y sombras cálidas — SOLO el aspecto; ni una sola mecánica, medida, posición o señal de juego cambió (drag & drop, auto-pase, lift de jugables, serpiente, rotación a la derecha: todo intacto).
+
+---
+Task ID: 15
+Agent: Z.ai Code (main agent)
+Task: «quiero que pules la calidad de las fichas a full hd no me gusta como se ven» — redibujar la cara de las fichas en calidad máxima (vector HD)
+
+Work Log:
+- Causa del «poco acabado»: la ficha se componía con divs + gradientes CSS planos (puntos círculos lisos, sin material). Sustituido el interior de domino-tile.tsx por una cara SVG vectorial (TileFace) — nitidez infinita a cualquier DPI/tamaño (25px o pantalla 4K, mismo dibujo perfecto).
+- Material nuevo por capa (viewBox 100×200 vertical / 200×100 horizontal, ids únicos por instancia con useId saneado):
+  * Pasta de marfil: gradiente lineal 4 paradas (#fbf6e8→#dbcfad) + profundidad cálida en la base + GRANO de marfil real (feTurbulence fractalNoise recortado a la ficha, opacidad 0.16) + brillo de pulido (gloss radial arriba).
+  * Bisel físico: arista con gradiente (blanco arriba → sombra de grosor abajo) que sustituye al border CSS.
+  * Puntos: radio subido a 7.5/100 (15%, como la foto real) con degradado radial taladrado (#2e3550→#0e1220) — dejan de ser círculos planos.
+  * Ranura divisoria: trazo #333949 con luz blanca adyacente (grabado) + clavo central (spinner) con mini-reflejo.
+  * Reverso: marfil + marca esmeralda con gloss (conservada).
+- Botón: sin border ni fondo CSS (ahora los dibuja el SVG); conserva tamaños, esquinas (rx SVG calibrado por tier: 20/22/18/14 para coincidir con rounded-[5px]/[7px]/lg), sombras cálidas de mesa y TODAS las señales de juego (lift -8px jugables, hover, aro esmeralda, highlight ámbar, glow de extremos, brightness de no jugables). preserveAspectRatio="none" para llenar cajas forzadas por la serpiente.
+- PIP_POSITIONS, rotación de mitades en horizontal y toda la geometría de la serpiente SIN CAMBIOS (mismo mapeo (r,c)→(c,2-r) que el CSS anterior).
+- Verificación E2E (agent-browser): lobby con fichas decorativas HD ✓; partida real: apertura arrastrando [6|6] a la mesa vacía → «Tú jugó [6|6]», bots encadenaron Kira[3|6]→Max[3|3]→Lola[5|3], extremos con glow, zoom a la mano con grano/gloss/bisel visibles ✓; señal de lift verificada por computed style (jugables «0px -8px», resto none) ✓; móvil 375×812 intacto ✓; 0 errores de consola/página; lint limpio; dev.log sin errores.
+
+Stage Summary:
+- Fichas calidad Full HD real: dibujo vectorial (nítido en cualquier pantalla) con material de marfil verosímil — grano, pulido, bisel, puntos taladrados y spinner. Cero cambios de mecánica, tamaños, posiciones o señales de juego; drag & drop, auto-pase y serpiente intactos.
