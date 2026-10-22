@@ -104,6 +104,8 @@ export interface DominoTileProps {
   playable?: boolean
   disabled?: boolean
   highlight?: boolean
+  /** aro esmeralda suave: marca los extremos abiertos de la cadena en la mesa */
+  glow?: boolean
   onClick?: () => void
   className?: string
   ariaLabel?: string
@@ -123,6 +125,7 @@ export const DominoTile = memo(function DominoTile({
   playable = false,
   disabled = false,
   highlight = false,
+  glow = false,
   onClick,
   className,
   ariaLabel,
@@ -150,6 +153,7 @@ export const DominoTile = memo(function DominoTile({
         !interactive && 'cursor-default',
         disabled && !faceDown && 'brightness-[0.97]',
         highlight && 'shadow-[0_0_0_3px_#fbbf24,0_3px_6px_rgba(0,0,0,0.35)]',
+        glow && !highlight && !interactive && 'shadow-[0_0_0_2px_rgba(52,211,153,0.9),0_4px_12px_rgba(16,185,129,0.45)]',
         className,
       )}
     >

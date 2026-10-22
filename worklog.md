@@ -127,3 +127,20 @@ Work Log:
 
 Stage Summary:
 - Las fichas ahora se organizan solas en serpentina sobre la mesa (estilo tablero real de dominó / Plato), con dobles en cruz, puntos coincidentes en cada unión y tamaño adaptativo según espacio disponible. Motor, reducer y APIs intactos.
+
+---
+Task ID: 7
+Agent: Z.ai Code (main agent)
+Task: "quiero los perfiles de los jugadores afuera de la mesa, igual que las fichas que tienen en la mano; sobre la mesa solamente las fichas jugadas bien organizadas"
+
+Work Log:
+- seat.tsx rehecho: cada perfil es ahora una CÁPSULA de cristal (borde + bg-zinc-900/60 + backdrop-blur) que vive FUERA del fieltro; contiene avatar circular más grande (h-11/h-13), píldora de nombre y la PILA de fichas de la mano boca abajo (h-8 w-4 solapadas, max 7) como sosteniéndolas frente al jugador; la cápsula del turno activo se tiñe de ámbar con halo. El humano no lleva pila (sus fichas reales van al lado).
+- page.tsx reestructurado (se eliminó el posicionamiento absoluto dentro del felt): Lola arriba-centro sobre la mesa; Max y Kira a izquierda/derecha en md+; en móvil los tres rivales comparten una fila superior (justify-between); el pozo (PotChips → nueva PotPill compacta) salió del fieltro a la fila de controles junto a Apuesta / Extremos / ⏭ Pasar turno / Salir; la sección "Tus fichas" ahora es tu cápsula + la mano real, debajo de la mesa.
+- Felt exclusivo de la cadena: plato-felt pasó a flex min-h-[400/440] items-center justify-center con SOLO BoardChain dentro (sin asientos, sin pozo, sin botón de pase).
+- board-chain.tsx: filas SIEMPRE centradas (justify-center, serpentina en espiral), eliminado el scroll interno, presupuestos de alto ampliados (390 escritorio / 330 móvil) aprovechando que la mesa ya no comparte espacio; nueva prop glow en DominoTile marca los dos EXTREMOS abiertos de la cadena con aro esmeralda.
+- Verificación E2E (1280×800 y 375×812): apertura [6|6], diálogo ¿Dónde colocas la ficha? con extremos, bots jugando por ambos lados, pilas de las cápsulas reduciéndose en vivo (7→6→…), pase con botón ⏭, dos partidas completas; cadena de 24 fichas en 3 filas (escritorio) y 20 fichas en 4 filas (móvil) con costuras verificadas por DOM (right[i]===left[i+1] en el 100% de las uniones); extremos con glow; footer empujado naturalmente; flujo Salir → Abandonar y perder apuesta OK; 0 errores de consola y de página.
+- Lint limpio. BD reseteada a pristine (jugador "default": 1000 tokens, 0 partidas, historial vacío) tras las pruebas.
+
+Stage Summary:
+- Los perfiles con sus fichas en mano (boca abajo) ahora rodean la mesa por fuera como en la app Plato; el fieltro muestra ÚNICAMENTE las fichas jugadas, organizadas en serpentina centrada con los extremos abiertos marcados en esmeralda.
+- Sin cambios de reglas ni de APIs (solo presentación): motor, reducer y endpoints intactos. BD limpia para el usuario.

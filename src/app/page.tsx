@@ -42,23 +42,19 @@ interface ServerOutcomeBody {
   payout: number
 }
 
-/** Pila de fichas del pozo sobre el fieltro (estilo Plato) */
-function PotChips({ pot }: { pot: number }) {
+/** Píldora del pozo: vive fuera del fieltro, en la fila de controles */
+function PotPill({ pot }: { pot: number }) {
   return (
-    <div className="flex flex-col items-center gap-1" aria-label={`Pozo: ${pot} tokens`}>
-      {/* Fichas de casino apiladas: base roja, centro ámbar, tope dorado */}
-      <div className="relative h-8 w-11" aria-hidden>
-        <span className="absolute inset-x-0 bottom-0 h-6 rounded-full border-2 border-white/70 bg-red-500 shadow-md" />
-        <span className="absolute inset-x-0 bottom-1.5 h-6 rounded-full border-2 border-white/75 bg-rose-500 shadow-md" />
-        <span className="absolute inset-x-0 bottom-3 h-6 rounded-full border-[3px] border-dashed border-white/90 bg-amber-400 shadow-lg" />
-      </div>
-      <span className="rounded-full bg-black/50 px-2.5 py-0.5 text-xs font-black text-amber-300 backdrop-blur-sm">
-        {pot} 🪙
+    <span
+      className="flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-zinc-900/85 px-3 py-1.5 text-xs font-bold text-amber-300 shadow"
+      aria-label={`Pozo: ${pot} tokens`}
+    >
+      <span className="relative h-4 w-6" aria-hidden>
+        <span className="absolute inset-x-0 bottom-0 h-3.5 rounded-full border-2 border-white/70 bg-red-500" />
+        <span className="absolute inset-x-0 bottom-1 h-3.5 rounded-full border-2 border-white/80 bg-amber-400" />
       </span>
-      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/55" aria-hidden>
-        pozo
-      </span>
-    </div>
+      Pozo: {pot}
+    </span>
   )
 }
 
@@ -434,7 +430,7 @@ export default function DominoPage() {
           )
         ) : (
           state && (
-            <div className="mx-auto w-full max-w-4xl">
+            <div className="mx-auto w-full max-w-5xl">
               {/* Estado y controles de la mesa */}
               <div className="mb-4 flex flex-col items-center gap-2">
                 <p
@@ -450,18 +446,28 @@ export default function DominoPage() {
                 >
                   {statusText}
                 </p>
-                <div className="flex w-full items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-zinc-500">
-                    Apuesta: <span className="text-amber-400">{state.stake} 🪙</span>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <span className="flex items-center gap-1 rounded-full border border-white/10 bg-zinc-900/85 px-3 py-1.5 text-xs font-semibold text-zinc-300 shadow">
+                    Apuesta: <span className="font-bold text-amber-400">{state.stake} 🪙</span>
                   </span>
+                  <PotPill pot={potFor(state.stake)} />
                   <span
-                    className="text-[11px] font-medium text-zinc-500"
+                    className="flex items-center gap-1.5 rounded-full border border-white/10 bg-zinc-900/85 px-3 py-1.5 text-xs font-semibold text-zinc-400 shadow"
                     aria-label="Extremos de la cadena"
                   >
-                    Extremos:{' '}
-                    <span className="font-bold text-zinc-300">[ {ends ? ends.left : '—'} ]</span>{' '}
-                    ⟷ <span className="font-bold text-zinc-300">[ {ends ? ends.right : '—'} ]</span>
+                    <span>Extremos:</span>
+                    <span className="font-bold text-zinc-100">[ {ends ? ends.left : '—'} ]</span>
+                    <span aria-hidden>⟷</span>
+                    <span className="font-bold text-zinc-100">[ {ends ? ends.right : '—'} ]</span>
                   </span>
+                  {canPass && (
+                    <Button
+                      onClick={handlePass}
+                      className="min-h-9 animate-pulse rounded-full bg-amber-400 px-4 text-xs font-black text-zinc-950 shadow-[0_6px_16px_rgba(251,191,36,0.4)] hover:bg-amber-300"
+                    >
+                      ⏭ Pasar turno
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -474,99 +480,94 @@ export default function DominoPage() {
                 </div>
               </div>
 
-              {/* Mesa estilo Plato */}
-              <div className="plato-table relative select-none rounded-[2rem] border-[6px] border-emerald-800 p-[6px] sm:rounded-[2.75rem] sm:border-8 sm:p-2">
-                <div className="plato-felt relative min-h-[540px] overflow-hidden rounded-[1.5rem] sm:min-h-[460px] sm:rounded-[2rem]">
-                  {/* Asiento superior: Lola */}
-                  <Seat
-                    seat={1}
-                    count={botCounts[0]}
-                    active={activeSeat === 1}
-                    className="absolute left-1/2 top-3 z-10 -translate-x-1/2"
-                  />
-                  {/* Asientos laterales */}
-                  <Seat
-                    seat={2}
-                    count={botCounts[1]}
-                    active={activeSeat === 2}
-                    className="absolute left-2 top-3 z-10 sm:left-4 sm:top-1/2 sm:-translate-y-1/2"
-                  />
-                  <Seat
-                    seat={3}
-                    count={botCounts[2]}
-                    active={activeSeat === 3}
-                    className="absolute right-2 top-3 z-10 sm:right-4 sm:top-1/2 sm:-translate-y-1/2"
-                  />
-                  {/* Asiento del jugador */}
-                  <Seat
-                    seat={0}
-                    count={state.hands[0].length}
-                    active={myTurn}
-                    hideStack
-                    className="absolute bottom-3 left-3 z-10 sm:left-5"
-                  />
-
-                  {/* Pozo en el borde inferior del fieltro, junto a tu zona de juego */}
-                  <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2">
-                    <PotChips pot={potFor(state.stake)} />
-                  </div>
-
-                  {/* Cadena de fichas (serpentina que se organiza sola) */}
-                  <div className="absolute inset-x-2 top-1/2 z-[5] -translate-y-1/2 sm:inset-x-28 sm:top-[52%]">
-                    <BoardChain chain={state.chain} />
-                  </div>
-
-                  {/* Pasar turno (solo sin jugada disponible) */}
-                  {canPass && (
-                    <div className="absolute bottom-6 right-4 z-20 sm:right-6">
-                      <Button
-                        onClick={handlePass}
-                        className="min-h-11 animate-pulse rounded-full bg-amber-400 px-6 font-black text-zinc-950 shadow-[0_8px_20px_rgba(251,191,36,0.4)] hover:bg-amber-300"
-                      >
-                        ⏭ Pasar turno
-                      </Button>
-                    </div>
-                  )}
-                </div>
+              {/* Rivales alrededor de la mesa: perfiles y sus fichas en mano, FUERA del fieltro */}
+              <div className="mb-2 flex items-end justify-between gap-1 md:mb-3 md:justify-center">
+                <Seat
+                  seat={2}
+                  count={botCounts[1]}
+                  active={activeSeat === 2}
+                  className="md:hidden"
+                />
+                <Seat seat={1} count={botCounts[0]} active={activeSeat === 1} />
+                <Seat
+                  seat={3}
+                  count={botCounts[2]}
+                  active={activeSeat === 3}
+                  className="md:hidden"
+                />
               </div>
 
-              {/* Mano del jugador, solapada sobre el borde inferior de la mesa */}
-              <section aria-label="Tus fichas" className="relative z-20 -mt-4 sm:-mt-5">
-                <div className="flex flex-wrap items-end justify-center gap-2 px-2 sm:gap-2.5">
-                  {state.hands[0].map((tile, index) => {
-                    const isPlayable = playableIds.has(tile.id)
-                    return (
-                      <motion.div
-                        key={tile.id}
-                        initial={{ opacity: 0, y: 26, scale: 0.75 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{
-                          delay: index * 0.045,
-                          type: 'spring',
-                          stiffness: 420,
-                          damping: 26,
-                        }}
-                      >
-                        <DominoTile
-                          size="lg"
-                          top={tile.a}
-                          bottom={tile.b}
-                          playable={isPlayable}
-                          disabled={!isPlayable}
-                          highlight={
-                            state.chain.length === 0 &&
-                            state.requiredFirstTileId === tile.id &&
-                            state.starter === 0
-                          }
-                          onClick={() => handleTileClick(tile)}
-                          className={cn(shakeTileId === tile.id && 'domino-shake')}
-                          ariaLabel={`Ficha ${tile.a} y ${tile.b}${isPlayable ? ', jugable' : ''}`}
-                        />
-                      </motion.div>
-                    )
-                  })}
+              <div className="flex items-center justify-center gap-2 sm:gap-4">
+                {/* Max a la izquierda (escritorio) */}
+                <Seat
+                  seat={2}
+                  count={botCounts[1]}
+                  active={activeSeat === 2}
+                  className="hidden shrink-0 md:flex"
+                />
+
+                <div className="min-w-0 flex-1">
+                  {/* Mesa estilo Plato: sobre el fieltro SOLO las fichas jugadas */}
+                  <div className="plato-table relative select-none rounded-[2rem] border-[6px] border-emerald-800 p-[6px] sm:rounded-[2.75rem] sm:border-8 sm:p-2">
+                    <div className="plato-felt relative flex min-h-[400px] items-center justify-center overflow-hidden rounded-[1.5rem] p-3 sm:min-h-[440px] sm:rounded-[2rem] sm:p-4">
+                      <BoardChain chain={state.chain} />
+                    </div>
+                  </div>
+
+                  {/* Tu perfil y tu mano, fuera de la mesa */}
+                  <section aria-label="Tus fichas" className="relative z-20 -mt-2 px-2 sm:-mt-3">
+                    <div className="mx-auto flex w-fit max-w-full flex-wrap items-end justify-center gap-x-2.5 gap-y-3">
+                      <Seat
+                        seat={0}
+                        count={state.hands[0].length}
+                        active={myTurn}
+                        hideStack
+                        className="mr-1 self-end"
+                      />
+                      {state.hands[0].map((tile, index) => {
+                        const isPlayable = playableIds.has(tile.id)
+                        return (
+                          <motion.div
+                            key={tile.id}
+                            initial={{ opacity: 0, y: 26, scale: 0.75 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            transition={{
+                              delay: index * 0.045,
+                              type: 'spring',
+                              stiffness: 420,
+                              damping: 26,
+                            }}
+                          >
+                            <DominoTile
+                              size="lg"
+                              top={tile.a}
+                              bottom={tile.b}
+                              playable={isPlayable}
+                              disabled={!isPlayable}
+                              highlight={
+                                state.chain.length === 0 &&
+                                state.requiredFirstTileId === tile.id &&
+                                state.starter === 0
+                              }
+                              onClick={() => handleTileClick(tile)}
+                              className={cn(shakeTileId === tile.id && 'domino-shake')}
+                              ariaLabel={`Ficha ${tile.a} y ${tile.b}${isPlayable ? ', jugable' : ''}`}
+                            />
+                          </motion.div>
+                        )
+                      })}
+                    </div>
+                  </section>
                 </div>
-              </section>
+
+                {/* Kira a la derecha (escritorio) */}
+                <Seat
+                  seat={3}
+                  count={botCounts[2]}
+                  active={activeSeat === 3}
+                  className="hidden shrink-0 md:flex"
+                />
+              </div>
 
               {/* Bitácora */}
               <div className="mt-6">

@@ -18,9 +18,13 @@ const TIERS = [
 ] as const
 
 const PAD_X = 12
-/** Presupuesto de alto de la cadena: escritorio (mesa 460px) y móvil (mesa 540px) */
-const BUDGET_DESKTOP = 236
-const BUDGET_MOBILE = 286
+/**
+ * Presupuesto de alto de la cadena. El fieltro ya es territorio exclusivo de
+ * las fichas jugadas (perfiles y manos viven fuera de la mesa), así que la
+ * serpentina puede respirar: si una fila extra hace falta, la mesa crece.
+ */
+const BUDGET_DESKTOP = 390
+const BUDGET_MOBILE = 330
 const ROW_GAP = 4
 
 interface Layout {
@@ -55,7 +59,7 @@ function computeLayout(chain: PlacedTile[], width: number, budget: number): Layo
     }
     const height = rows.length * tier.rowH + (rows.length - 1) * ROW_GAP
     const layout: Layout = { rows, tier, fits: height <= budget }
-    // Si ningún nivel cabe del todo, se queda el más pequeño (con scroll interno)
+    // Si ningún nivel cabe del todo, se queda el más pequeño (la mesa crece)
     fallback = layout
     if (layout.fits) return layout
   }
@@ -63,10 +67,11 @@ function computeLayout(chain: PlacedTile[], width: number, budget: number): Layo
 }
 
 /**
- * Cadena de fichas estilo Plato sobre el fieltro: serpentina que se reorganiza
- * sola en filas alternadas; los dobles se colocan en cruz. En las filas que van
- * de derecha a izquierda las mitades se muestran intercambiadas para que los
- * puntos que se tocan sigan coincidiendo.
+ * Cadena de fichas estilo Plato: lo ÚNICO que vive sobre el fieltro. Se organiza
+ * sola en una serpentina centrada de filas alternadas; los dobles van en cruz y
+ * los dos extremos abiertos llevan un aro esmeralda (ahí es donde se puede jugar).
+ * En las filas que van de derecha a izquierda las mitades se muestran
+ * intercambiadas para que los puntos que se tocan sigan coincidiendo.
  */
 export function BoardChain({ chain }: BoardChainProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -78,7 +83,7 @@ export function BoardChain({ chain }: BoardChainProps) {
   const [lastChain, setLastChain] = useState<PlacedTile[]>(chain)
   const [budget, setBudget] = useState(BUDGET_DESKTOP)
 
-  // Presupuesto de alto según el ancho de pantalla (móvil tiene mesa más alta)
+  // Presupuesto de alto según el ancho de pantalla
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 640px)')
     const update = () => setBudget(mq.matches ? BUDGET_DESKTOP : BUDGET_MOBILE)
@@ -120,33 +125,34 @@ export function BoardChain({ chain }: BoardChainProps) {
 
   const layout = useMemo(() => computeLayout(chain, width, budget), [chain, width, budget])
 
+  // Extremos abiertos de la cadena: primera y última ficha jugadas
+  const endIds = useMemo(() => {
+    const ids = new Set<number>()
+    if (chain.length > 0) {
+      ids.add(chain[0].id)
+      ids.add(chain[chain.length - 1].id)
+    }
+    return ids
+  }, [chain])
+
   return (
-    <div
-      ref={wrapRef}
-      className="scrollbar-thin max-h-[286px] overflow-y-auto overflow-x-hidden sm:max-h-[240px]"
-      role="region"
-      aria-label="Cadena de fichas en la mesa"
-    >
+    <div ref={wrapRef} className="w-full" role="region" aria-label="Cadena de fichas en la mesa">
       {chain.length === 0 ? (
-        <div className="flex h-16 items-center justify-center px-3">
-          <div className="flex max-w-full items-center justify-center rounded-xl border-2 border-dashed border-white/25 px-4 text-center sm:px-6">
+        <div className="flex min-h-24 items-center justify-center px-3">
+          <div className="flex max-w-full items-center justify-center rounded-xl border-2 border-dashed border-white/25 px-4 py-3 text-center sm:px-6">
             <span className="text-xs font-semibold text-white/60 sm:text-sm">
               Mesa vacía · el doble más alto abre la cadena
             </span>
           </div>
         </div>
       ) : layout ? (
-        <div className="flex flex-col px-3 py-2" style={{ gap: ROW_GAP }}>
+        <div className="flex flex-col items-center px-1 py-1" style={{ gap: ROW_GAP }}>
           {layout.rows.map((row, rowIndex) => {
             const reversed = rowIndex % 2 === 1
             return (
               <div
                 key={rowIndex}
-                className={cn(
-                  'flex items-center',
-                  reversed && 'flex-row-reverse',
-                  layout.rows.length === 1 && 'justify-center',
-                )}
+                className={cn('flex items-center justify-center', reversed && 'flex-row-reverse')}
                 style={{ minHeight: layout.tier.rowH, gap: layout.tier.gap }}
                 data-testid={`chain-row-${rowIndex}`}
               >
@@ -169,6 +175,7 @@ export function BoardChain({ chain }: BoardChainProps) {
                         orientation={isDouble ? 'vertical' : 'horizontal'}
                         top={showTop}
                         bottom={showBottom}
+                        glow={endIds.has(tile.id)}
                         ariaLabel={`Ficha ${tile.left} y ${tile.right} en la mesa`}
                       />
                     </motion.div>
