@@ -686,7 +686,7 @@ export function TableIntro({
         )}
 
         {/* ---- contenido (botón) al final, con halo de brasas: sobre las fichas ---- */}
-        <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-5 p-3">
+        <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-5 p-3 pb-8 sm:pb-10">
           {phase === 'ready' && (
             <motion.div
               className="relative flex flex-col items-center gap-5"

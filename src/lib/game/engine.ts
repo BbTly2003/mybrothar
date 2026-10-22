@@ -1,7 +1,10 @@
 // Motor puro del juego de dominó (sin React): baraja, reparto, reglas y IA de bots.
 
 import type { GameState, PlacedTile, Side, Tile } from './types'
-import { SEAT_NAMES } from './types'
+import { seatName } from './types'
+
+/** Nombres por defecto de la mesa rápida */
+const SEAT_NAMES_FALLBACK = ['Tú', 'Lola', 'Max', 'Kira'] as const
 
 export const HAND_SIZE = 7
 
@@ -87,9 +90,11 @@ function findHighestDouble(hands: Tile[][]): { seat: number; tile: Tile } | null
   return null
 }
 
-/** Crea el estado inicial de una partida nueva (usa Math.random: llamar fuera de reducers) */
-export function createGame(): GameState {
+/** Crea el estado inicial de una partida nueva (usa Math.random: llamar fuera de reducers).
+ *  names: nombres reales por asiento (multijugador); si se omite, usa los de la mesa rápida. */
+export function createGame(names?: string[]): GameState {
   const hands = dealHands()
+  const seatLabel = (seat: number) => names?.[seat] ?? SEAT_NAMES_FALLBACK[seat]
 
   // Regla clásica: comienza quien tenga el doble más alto y juega esa ficha.
   // Como las 28 fichas siempre se reparten, los 7 dobles están en juego y el doble más alto existe.
@@ -124,7 +129,7 @@ export function createGame(): GameState {
     },
     {
       id: logSeq++,
-      text: `${SEAT_NAMES[starter]} tiene el doble más alto [${requiredTile.a}|${requiredTile.b}] y comienza la partida.`,
+      text: `${seatLabel(starter)} tiene el doble más alto [${requiredTile.a}|${requiredTile.b}] y comienza la partida.`,
       kind: 'info',
     },
   ]
@@ -141,6 +146,7 @@ export function createGame(): GameState {
     lastSide: null,
     log,
     logSeq,
+    names,
   }
 }
 
@@ -199,7 +205,7 @@ export function resolveBlocked(state: GameState): GameState['outcome'] {
   const winners = sums.map((s, seat) => ({ s, seat })).filter((w) => w.s === min).map((w) => w.seat)
 
   const humanWins = winners.includes(0)
-  const winnerLabel = winners.map((w) => SEAT_NAMES[w]).join(' y ')
+  const winnerLabel = winners.map((w) => seatName(state, w)).join(' y ')
   const message = humanWins
     ? `Mesa bloqueada. Tenías la mano más ligera (${sums[0]} puntos) y ganas la partida.`
     : `Mesa bloqueada. ${winnerLabel} tenía la mano más ligera y gana la partida.`

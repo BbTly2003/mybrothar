@@ -422,3 +422,22 @@ Work Log:
 Stage Summary:
 - Fichas con apariencia física real: grosor de canto, agujeros taladrados con luz/sombra, spinner de latón y reflejo de barniz — nitidez SVG intacta en todos los tamaños.
 - domino-tile.tsx sigue siendo la única fuente de las fichas (intro, mano, cadena y reversos usan el mismo componente).
+
+---
+Task ID: 22
+Agent: Z.ai Code (principal)
+Task: «1- el nombre del juego va a ser MyBrothar 2- eleva y renombra el botón jugar a Partida Rápida, más abajo otro botón Multiplayer 3- multijugador local por WiFi: crear y unirse a sala de juego para 4 jugadores»
+
+Work Log:
+- RENOMBRE: header «MyBrothar» (+ tag DOMINÓ), footer y metadata layout.tsx con la nueva marca.
+- MENÚ: contenido elevado (pb-8/sm:pb-10 en la capa de contenido de table-intro.tsx); botón JUGAR renombrado a «PARTIDA RÁPIDA» (placa morada, texto reducido) y NUEVO botón «MULTIPLAYER» con la misma placa cómic en esmeralda (#34d399 / contorno #064e3b / sombra #04301f) + subtítulo «Crea una sala y juega por WiFi».
+- NOMBRES REALES: GameState.names + seatName() en types.ts; reducer/engine usan nombres por asiento (rotación (player+3)%4 INTACTA); Seat acepta name; ResultDialog acepta seatNames/replayLabel/replayDisabled; createGame(names?) los guarda.
+- MINI SERVICIO mini-services/room-service (socket.io, puerto 3003, bun --hot): salas en memoria con código de 4 caracteres; lobby:create/join/leave/start; juego AUTORITATIVO reutilizando el reducer compartido vía import relativo; vista personalizada por asiento (rotación para que cada cliente sea el asiento 0, manos ajenas vacías + handCounts, resultado y veredicto del log personalizados); red de seguridad de auto-pase a los 8s si el que tiene turno no tiene jugada; desconexión en partida cierra la sala.
+- FRONTEND: RoomLobby (entry: nombre + crear/unirse con código; room: código copiable, 4 huecos con anfitrión, empezar/esperar); socket.io-client con io('/?XTransformPort=3003'); en modo multi las jugadas y pases viajan por socket, los bots se desactivan, conteos/nombres llegan del servidor, revancha solo del anfitrión («⏳ Esperando revancha…» para invitados); botón Salir cierra la sala.
+- FIXES durante E2E: asiento derecho de escritorio sin nombre («Kira») → añadido name; multiRef en useEffect (react-hooks/refs); statusText con dependencias limpias (react-compiler); orden updateDrag antes de exitMulti (TDZ).
+- E2E REAL con 4 sesiones de navegador vía gateway :81 (nota: localhost:3000 no pasa por Caddy — por eso los sockets de prueba fallaban; los usuarios reales pasan por el gateway): sala 99KT creada por Ana → Beto/Caro/Dani entran → partida iniciada → Dani jugó [6|6] sincronizado en los 4 → Caro/Beto auto-pasan → Ana arrastró [0|6] al extremo derecho (drag&drop por WiFi OK) → extremos [0]⟷[6] y turnos correctos en todos los clientes. Partida rápida con bots re-verificada.
+
+Stage Summary:
+- MyBrothar con dos modos: Partida Rápida (bots, intacta) y Multiplayer WiFi (salas de 4, servidor autoritativo, vistas rotadas por asiento).
+- Archivos: mini-services/room-service/{package.json,index.ts} (nuevo), room-lobby.tsx (nuevo), page.tsx (lobby+multi), types/reducer/engine (names), seat.tsx/result-dialog.tsx (props), layout.tsx, table-intro.tsx (pb).
+- room-service corre en :3003 (log en room-service.log); el cliente siempre usa io('/?XTransformPort=3003').

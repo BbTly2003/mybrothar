@@ -59,6 +59,8 @@ export interface GameState {
   lastSide: Side | null
   log: LogEntry[]
   logSeq: number
+  /** nombres reales por asiento (multijugador); si falta, usa SEAT_NAMES */
+  names?: string[]
 }
 
 /**
@@ -67,6 +69,11 @@ export interface GameState {
  *   Tú (abajo) → Kira (derecha) → Max (frente/arriba) → Lola (izquierda) → Tú
  */
 export const SEAT_NAMES = ['Tú', 'Lola', 'Max', 'Kira'] as const
+
+/** Nombre del asiento: usa los nombres reales de la partida si existen (multijugador) */
+export function seatName(state: { names?: string[] }, seat: number): string {
+  return state.names?.[seat] ?? SEAT_NAMES[seat]
+}
 
 /** Avatar emoji por asiento (estilo Plato) */
 export const SEAT_AVATARS = ['😎', '🐼', '🦊', '🐯'] as const

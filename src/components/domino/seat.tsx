@@ -14,6 +14,8 @@ interface SeatProps {
   active: boolean
   /** oculta la pila boca abajo (asiento del jugador humano: sus fichas reales van al lado) */
   hideStack?: boolean
+  /** nombre real del jugador (multijugador); si falta, usa el del asiento */
+  name?: string
   className?: string
 }
 
@@ -28,8 +30,10 @@ export const Seat = memo(function Seat({
   count,
   active,
   hideStack = false,
+  name,
   className,
 }: SeatProps) {
+  const displayName = name ?? SEAT_NAMES[seat]
   return (
     <div
       className={cn(
@@ -39,7 +43,7 @@ export const Seat = memo(function Seat({
           : 'border-white/10 bg-zinc-900/60',
         className,
       )}
-      aria-label={`${SEAT_NAMES[seat]}: ${count} ficha${count === 1 ? '' : 's'} en mano${active ? ', su turno' : ''}`}
+      aria-label={`${displayName}: ${count} ficha${count === 1 ? '' : 's'} en mano${active ? ', su turno' : ''}`}
     >
       <div className="relative">
         <div
@@ -68,7 +72,7 @@ export const Seat = memo(function Seat({
         )}
         aria-hidden
       >
-        {SEAT_NAMES[seat]}
+        {displayName}
       </span>
       {!hideStack && (
         <div className="flex -space-x-2 pt-0.5" aria-hidden>

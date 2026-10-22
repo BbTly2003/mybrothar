@@ -18,6 +18,11 @@ interface ResultDialogProps {
   outcome: GameOutcome | null
   onReplay: () => void
   onClose: () => void
+  /** nombres reales por asiento rotados (multijugador); si falta, usa los de la mesa */
+  seatNames?: string[]
+  /** etiqueta del botón de revancha y si está habilitada (multijugador: solo el anfitrión) */
+  replayLabel?: string
+  replayDisabled?: boolean
 }
 
 const RESULT_STYLE = {
@@ -28,7 +33,15 @@ const RESULT_STYLE = {
 } as const
 
 /** Diálogo de fin de partida (sin apuestas ni pozos: solo el resultado) */
-export function ResultDialog({ open, outcome, onReplay, onClose }: ResultDialogProps) {
+export function ResultDialog({
+  open,
+  outcome,
+  onReplay,
+  onClose,
+  seatNames,
+  replayLabel = '🔁 Jugar otra vez',
+  replayDisabled = false,
+}: ResultDialogProps) {
   if (!outcome) return null
 
   const style = RESULT_STYLE[outcome.type]
@@ -59,7 +72,7 @@ export function ResultDialog({ open, outcome, onReplay, onClose }: ResultDialogP
             <div className="flex items-center justify-center gap-4">
               {sums.map((s, seat) => (
                 <div key={seat} className="text-center">
-                  <p className="text-[10px] font-semibold text-slate-500">{SEAT_NAMES[seat]}</p>
+                  <p className="text-[10px] font-semibold text-slate-500">{seatNames?.[seat] ?? SEAT_NAMES[seat]}</p>
                   <p
                     className={cn(
                       'text-lg font-black',
@@ -77,9 +90,10 @@ export function ResultDialog({ open, outcome, onReplay, onClose }: ResultDialogP
         <DialogFooter className="flex-col gap-2 sm:flex-col">
           <Button
             onClick={onReplay}
-            className="min-h-11 w-full bg-emerald-600 font-bold hover:bg-emerald-500"
+            disabled={replayDisabled}
+            className="min-h-11 w-full bg-emerald-600 font-bold hover:bg-emerald-500 disabled:opacity-60"
           >
-            🔁 Jugar otra vez
+            {replayLabel}
           </Button>
           <Button
             onClick={onClose}

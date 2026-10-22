@@ -21,15 +21,17 @@ import { BoardChain } from '@/components/domino/board-chain'
 import { DominoTile } from '@/components/domino/domino-tile'
 import { GameLog } from '@/components/domino/game-log'
 import { ResultDialog } from '@/components/domino/result-dialog'
+import { RoomLobby, type LobbyState } from '@/components/domino/room-lobby'
 import { Seat } from '@/components/domino/seat'
 import { TableIntro } from '@/components/domino/table-intro'
 
 import { chooseBotMove, createGame, getEnds, sidesFor } from '@/lib/game/engine'
 import { gameReducer } from '@/lib/game/reducer'
-import type { Side, Tile } from '@/lib/game/types'
+import type { GameState, Side, Tile } from '@/lib/game/types'
 import { SEAT_NAMES } from '@/lib/game/types'
 import { getMutedSnapshot, playSfx, setSfxMuted, subscribeMuted } from '@/lib/sfx'
 import { cn } from '@/lib/utils'
+import { io, type Socket } from 'socket.io-client'
 
 // ---------- Placa cómic del botón JUGAR (silueta dentada tipo peg tearing) ----------
 
@@ -85,6 +87,16 @@ function CornerCups() {
       <span aria-hidden className="mesa-cup absolute bottom-1.5 right-1.5 h-5 w-5 rounded-full sm:bottom-2 sm:right-2 sm:h-6 sm:w-6" />
     </>
   )
+}
+
+// ---------- Multijugador local (WiFi): metadatos que llegan del room-service ----------
+
+/** Datos que acompañan a cada vista de partida multijugador */
+interface MultiMeta {
+  handCounts: [number, number, number, number]
+  seatNames: string[]
+  code: string
+  isHost: boolean
 }
 
 // ---------- Drag & drop de fichas hacia la mesa ----------
@@ -184,6 +196,17 @@ export default function DominoPage() {
   const [shakeTileId, setShakeTileId] = useState<number | null>(null)
   /** la bandera del panel permanece oculta hasta que el rayo la revela en la intro */
   const [flagVisible, setFlagVisible] = useState(false)
+  // ---------- Multijugador (sala WiFi) ----------
+  const [lobbyScreen, setLobbyScreen] = useState<'closed' | 'entry' | 'room'>('closed')
+  const [lobbyName, setLobbyName] = useState('')
+  const [joinCode, setJoinCode] = useState('')
+  const [lobby, setLobby] = useState<LobbyState | null>(null)
+  const [lobbyBusy, setLobbyBusy] = useState(false)
+  const [lobbyError, setLobbyError] = useState<string | null>(null)
+  const [socketConnected, setSocketConnected] = useState(false)
+  /** metadatos de la partida multijugador activa (null = mesa rápida contra bots) */
+  const [multiView, setMultiView] = useState<MultiMeta | null>(null)
+  const socketRef = useRef<Socket | null>(null)
   /** El mute vive fuera de React (módulo sfx + localStorage): sin efectos ni hidratación frágil */
   const muted = useSyncExternalStore(subscribeMuted, getMutedSnapshot, () => false)
 
@@ -202,6 +225,105 @@ export default function DominoPage() {
     setDrag(d)
   }, [])
 
+  // ---------- Multijugador: conexión y sala ----------
+  /** ¿estamos en partida multijugador? (lectura estable dentro de callbacks) */
+  const multiRef = useRef(false)
+  useEffect(() => {
+    multiRef.current = multiView !== null
+  }, [multiView])
+
+  /** Sale del multijugador y vuelve al menú (también cuando el servidor cierra la sala) */
+  const exitMulti = useCallback(() => {
+    socketRef.current?.emit('lobby:leave')
+    setMultiView(null)
+    setLobby(null)
+    setLobbyError(null)
+    setJoinCode('')
+    setLobbyScreen('closed')
+    setShakeTileId(null)
+    dispatch({ type: 'RESET' })
+    updateDrag(null)
+    prevPhaseRef.current = null
+  }, [updateDrag])
+
+  /** Conexión única al room-service (socket.io vía gateway: XTransformPort) */
+  const ensureSocket = useCallback(() => {
+    if (socketRef.current) return socketRef.current
+    // Nunca poner el puerto en la URL: siempre XTransformPort (lo reenvía Caddy)
+    const s = io('/?XTransformPort=3003', {
+      transports: ['websocket', 'polling'],
+      forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 8,
+      reconnectionDelay: 800,
+      timeout: 10000,
+    })
+    socketRef.current = s
+    s.on('connect', () => setSocketConnected(true))
+    s.on('disconnect', () => setSocketConnected(false))
+    s.on('lobby:state', (p: { code: string; mySeat: number; isHost: boolean; players: string[] }) => {
+      setLobby({ code: p.code, players: p.players, isHost: p.isHost, mySeat: p.mySeat })
+      setLobbyScreen('room')
+    })
+    s.on('game:view', (v: { state: GameState; handCounts: [number, number, number, number]; seatNames: string[]; code: string; isHost: boolean }) => {
+      setMultiView({ handCounts: v.handCounts, seatNames: v.seatNames, code: v.code, isHost: v.isHost })
+      setLobby(null)
+      setLobbyScreen('closed')
+      setLobbyError(null)
+      prevPhaseRef.current = 'playing'
+      dispatch({ type: 'SET_GAME', state: v.state })
+      playSfx('deal')
+    })
+    s.on('room:closed', (d: { reason?: string }) => {
+      exitMulti()
+      if (d?.reason) toast.info(d.reason)
+    })
+    return s
+  }, [exitMulti])
+
+  const openLobby = useCallback(() => {
+    setLobbyError(null)
+    setLobbyScreen('entry')
+    ensureSocket()
+  }, [ensureSocket])
+
+  const handleCreateRoom = useCallback(() => {
+    const s = ensureSocket()
+    setLobbyBusy(true)
+    setLobbyError(null)
+    s.emit('lobby:create', { name: lobbyName }, (r: { ok: boolean; error?: string }) => {
+      setLobbyBusy(false)
+      if (!r.ok) setLobbyError(r.error ?? 'No se pudo crear la sala.')
+    })
+  }, [ensureSocket, lobbyName])
+
+  const handleJoinRoom = useCallback(() => {
+    const s = ensureSocket()
+    setLobbyBusy(true)
+    setLobbyError(null)
+    s.emit('lobby:join', { code: joinCode, name: lobbyName }, (r: { ok: boolean; error?: string }) => {
+      setLobbyBusy(false)
+      if (!r.ok) setLobbyError(r.error ?? 'No se pudo entrar a la sala.')
+    })
+  }, [ensureSocket, joinCode, lobbyName])
+
+  const handleStartRoom = useCallback(() => {
+    socketRef.current?.emit('lobby:start', (r: { ok: boolean; error?: string }) => {
+      if (!r.ok) setLobbyError(r.error ?? 'No se pudo empezar.')
+    })
+  }, [])
+
+  const handleRematch = useCallback(() => {
+    socketRef.current?.emit('game:rematch', (r: { ok: boolean; error?: string }) => {
+      if (!r.ok) toast.error(r.error ?? 'No se pudo dar revancha.')
+    })
+  }, [])
+
+  const handleLeaveRoom = useCallback(() => {
+    exitMulti()
+    toast.info('Saliste de la sala.')
+  }, [exitMulti])
+
   // ---------- Sonido al terminar la partida ----------
   useEffect(() => {
     if (!state) {
@@ -216,8 +338,9 @@ export default function DominoPage() {
     }
   }, [state])
 
-  // ---------- Bucle de los bots ----------
+  // ---------- Bucle de los bots (solo mesa rápida: en multijugador todos son humanos) ----------
   useEffect(() => {
+    if (multiRef.current) return
     if (!state || state.phase !== 'playing' || state.turn === 0) return
     const botSeat = state.turn
     const timer = setTimeout(
@@ -272,7 +395,11 @@ export default function DominoPage() {
     if (state.chain.length === 0) return // la apertura siempre tiene la ficha obligatoria
     if (playableIds.size > 0) return
     const timer = setTimeout(() => {
-      dispatch({ type: 'APPLY_PASS', player: 0 })
+      if (multiRef.current) {
+        socketRef.current?.emit('game:action', { kind: 'pass' })
+      } else {
+        dispatch({ type: 'APPLY_PASS', player: 0 })
+      }
       playSfx('pass')
     }, AUTO_PASS_DELAY)
     return () => clearTimeout(timer)
@@ -282,8 +409,11 @@ export default function DominoPage() {
     myTurn && !!state && state.phase === 'playing' && state.chain.length > 0 && playableIds.size === 0
 
   const ends = state ? getEnds(state.chain) : null
+  /** conteos de mano: en multi llegan del servidor (las demás manos viajan vacías) */
   const botCounts: [number, number, number] = state
-    ? [state.hands[1].length, state.hands[2].length, state.hands[3].length]
+    ? multiView
+      ? [multiView.handCounts[1], multiView.handCounts[2], multiView.handCounts[3]]
+      : [state.hands[1].length, state.hands[2].length, state.hands[3].length]
     : [7, 7, 7]
   const activeSeat = state && state.phase === 'playing' ? state.turn : null
 
@@ -301,8 +431,8 @@ export default function DominoPage() {
         ? 'Es tu turno · toca una ficha o arrástrala a la mesa'
         : 'Es tu turno · sin jugada · pasas turno automáticamente…'
     }
-    return `Turno de ${SEAT_NAMES[state.turn]}…`
-  }, [state, playableIds.size])
+    return `Turno de ${multiView ? multiView.seatNames[state.turn] : SEAT_NAMES[state.turn]}…`
+  }, [state, playableIds.size, multiView])
 
   // ---------- Acciones ----------
   const startGame = useCallback(() => {
@@ -315,7 +445,12 @@ export default function DominoPage() {
 
   const playTile = useCallback((tile: Tile, side: Side) => {
     setShakeTileId(null)
-    dispatch({ type: 'APPLY_PLAY', player: 0, tileId: tile.id, side })
+    if (multiRef.current) {
+      // multijugador: la jugada viaja al room-service (el estado real vive en la sala)
+      socketRef.current?.emit('game:action', { kind: 'play', tileId: tile.id, side })
+    } else {
+      dispatch({ type: 'APPLY_PLAY', player: 0, tileId: tile.id, side })
+    }
     playSfx('click')
   }, [])
 
@@ -328,7 +463,9 @@ export default function DominoPage() {
       }
       if (!state || state.phase !== 'playing') return
       if (state.turn !== 0) {
-        toast.info('No es tu turno.', { description: 'Espera a que jueguen los bots.' })
+        toast.info('No es tu turno.', {
+          description: multiRef.current ? 'Espera tu turno en la sala.' : 'Espera a que jueguen los bots.',
+        })
         return
       }
       if (
@@ -445,11 +582,16 @@ export default function DominoPage() {
 
   const handleLeave = useCallback(() => {
     setConfirmLeave(false)
+    if (multiRef.current) {
+      exitMulti()
+      toast.info('Saliste de la sala.')
+      return
+    }
     dispatch({ type: 'RESET' })
     updateDrag(null)
     prevPhaseRef.current = null
     toast.info('Saliste de la partida.')
-  }, [updateDrag])
+  }, [exitMulti, updateDrag])
 
   /** Feedback de zonas de suelta para la mesa (solo mientras se arrastra de verdad) */
   const dropHint = useMemo(() => {
@@ -471,7 +613,10 @@ export default function DominoPage() {
               🀄
             </span>
             <h1 className="text-lg font-black tracking-tight sm:text-xl">
-              Salón de Dominó <span className="text-emerald-400">Online</span>
+              My<span className="text-emerald-400">Brothar</span>
+              <span className="ml-2 hidden align-middle text-[10px] font-bold uppercase tracking-widest text-zinc-500 sm:inline">
+                dominó
+              </span>
             </h1>
           </div>
 
@@ -539,13 +684,20 @@ export default function DominoPage() {
                 seat={1}
                 count={botCounts[0]}
                 active={activeSeat === 1}
+                name={multiView ? multiView.seatNames[1] : undefined}
                 className="md:hidden"
               />
-              <Seat seat={2} count={botCounts[1]} active={activeSeat === 2} />
+              <Seat
+                seat={2}
+                count={botCounts[1]}
+                active={activeSeat === 2}
+                name={multiView ? multiView.seatNames[2] : undefined}
+              />
               <Seat
                 seat={3}
                 count={botCounts[2]}
                 active={activeSeat === 3}
+                name={multiView ? multiView.seatNames[3] : undefined}
                 className="md:hidden"
               />
             </div>
@@ -556,6 +708,7 @@ export default function DominoPage() {
                 seat={1}
                 count={botCounts[0]}
                 active={activeSeat === 1}
+                name={multiView ? multiView.seatNames[1] : undefined}
                 className="hidden shrink-0 md:flex"
               />
 
@@ -577,6 +730,7 @@ export default function DominoPage() {
                       count={state.hands[0].length}
                       active={myTurn}
                       hideStack
+                      name={multiView ? multiView.seatNames[0] : undefined}
                       className="mr-1 self-end"
                     />
                     {state.hands[0].map((tile, index) => {
@@ -623,11 +777,12 @@ export default function DominoPage() {
                 </section>
               </div>
 
-              {/* Kira a la derecha (escritorio): recibe el turno de Tú — el juego corre hacia la derecha */}
+              {/* Jugador a la derecha (escritorio): recibe el turno de Tú — el juego corre hacia la derecha */}
               <Seat
                 seat={3}
                 count={botCounts[2]}
                 active={activeSeat === 3}
+                name={multiView ? multiView.seatNames[3] : undefined}
                 className="hidden shrink-0 md:flex"
               />
             </div>
@@ -638,61 +793,106 @@ export default function DominoPage() {
             </div>
           </div>
         ) : (
-          /* Mesa vacía: intro cinematográfica (rayo + fichas) e invitación a jugar */
+          /* Mesa vacía: intro cinematográfica (rayo + fichas) o sala multijugador */
           <div className="mx-auto w-full max-w-3xl">
             <div className="mesa-wood relative select-none rounded-[2rem] border-[6px] border-[#3a2412] p-3.5 sm:rounded-[2.75rem] sm:border-8 sm:p-5">
               <CornerCups />
               <div className="mesa-panel relative min-h-[400px] overflow-hidden rounded-[1.5rem] sm:min-h-[440px] sm:rounded-[2rem]">
-                <FlagPanel visible={flagVisible} />
-                <TableIntro
-                  onPhaseChange={(p) => setFlagVisible(p === 'bolt' || p === 'crack' || p === 'ready')}
-                >
-                  <button
-                    onClick={startGame}
-                    className="group flex flex-col items-center gap-1.5 rounded-2xl outline-none transition-transform duration-150 hover:-rotate-1 hover:scale-[1.04] focus-visible:ring-2 focus-visible:ring-purple-200 active:translate-y-[3px] active:scale-[0.99]"
-                    aria-label="Jugar una partida de dominó"
+                <FlagPanel visible={flagVisible || lobbyScreen !== 'closed' || !!state} />
+                {lobbyScreen !== 'closed' ? (
+                  <RoomLobby
+                    screen={lobbyScreen}
+                    connected={socketConnected}
+                    busy={lobbyBusy}
+                    name={lobbyName}
+                    onNameChange={setLobbyName}
+                    joinCode={joinCode}
+                    onJoinCodeChange={setJoinCode}
+                    onCreate={handleCreateRoom}
+                    onJoin={handleJoinRoom}
+                    lobby={lobby}
+                    onStart={handleStartRoom}
+                    onLeave={handleLeaveRoom}
+                    error={lobbyError}
+                  />
+                ) : (
+                  <TableIntro
+                    onPhaseChange={(p) => setFlagVisible(p === 'bolt' || p === 'crack' || p === 'ready')}
                   >
-                    <span className="relative block">
-                      {/* placa estilo cómic: silueta dentada, sombra dura y borde grueso */}
-                      <svg viewBox="0 0 320 124" className="w-64 sm:w-72" aria-hidden>
-                        {/* sombra dura desplazada */}
-                        <path
-                          d={BADGE_PATH}
-                          transform="translate(8 9)"
-                          fill="#2e0a49"
-                        />
-                        {/* placa morada con contorno grueso */}
-                        <path
-                          d={BADGE_PATH}
-                          fill="#a855f7"
-                          stroke="#3b0764"
-                          strokeWidth="6"
-                          strokeLinejoin="round"
-                        />
-                        {/* muescas cómic dentro de la placa */}
-                        <g
-                          stroke="#3b0764"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          opacity="0.85"
-                        >
-                          <path d="M50 32 l14 -9" />
-                          <path d="M266 32 l12 8" />
-                          <path d="M38 78 l12 8" />
-                        </g>
-                      </svg>
-                      <span
-                        aria-hidden
-                        className="absolute inset-x-0 top-0 bottom-[10px] flex items-center justify-center text-[26px] font-black uppercase tracking-[0.06em] text-[#3b0764] sm:text-[30px]"
+                    <div className="flex flex-col items-center gap-3 sm:gap-4">
+                      <button
+                        onClick={startGame}
+                        className="group flex flex-col items-center gap-1.5 rounded-2xl outline-none transition-transform duration-150 hover:-rotate-1 hover:scale-[1.04] focus-visible:ring-2 focus-visible:ring-purple-200 active:translate-y-[3px] active:scale-[0.99]"
+                        aria-label="Partida rápida contra 3 bots"
                       >
-                        Jugar
-                      </span>
-                    </span>
-                    <span className="text-[11px] font-semibold text-purple-100/85 [text-shadow:0_1px_2px_rgba(0,0,0,0.95),0_0_8px_rgba(0,0,0,0.8)] sm:text-xs">
-                      4 jugadores · el doble más alto abre la partida
-                    </span>
-                  </button>
-                </TableIntro>
+                        <span className="relative block">
+                          {/* placa estilo cómic: silueta dentada, sombra dura y borde grueso */}
+                          <svg viewBox="0 0 320 124" className="w-60 sm:w-64" aria-hidden>
+                            {/* sombra dura desplazada */}
+                            <path d={BADGE_PATH} transform="translate(8 9)" fill="#2e0a49" />
+                            {/* placa morada con contorno grueso */}
+                            <path
+                              d={BADGE_PATH}
+                              fill="#a855f7"
+                              stroke="#3b0764"
+                              strokeWidth="6"
+                              strokeLinejoin="round"
+                            />
+                            {/* muescas cómic dentro de la placa */}
+                            <g stroke="#3b0764" strokeWidth="3" strokeLinecap="round" opacity="0.85">
+                              <path d="M50 32 l14 -9" />
+                              <path d="M266 32 l12 8" />
+                              <path d="M38 78 l12 8" />
+                            </g>
+                          </svg>
+                          <span
+                            aria-hidden
+                            className="absolute inset-x-0 top-0 bottom-[10px] flex items-center justify-center text-[19px] font-black uppercase tracking-[0.04em] text-[#3b0764] sm:text-[23px]"
+                          >
+                            Partida rápida
+                          </span>
+                        </span>
+                        <span className="text-[11px] font-semibold text-purple-100/85 [text-shadow:0_1px_2px_rgba(0,0,0,0.95),0_0_8px_rgba(0,0,0,0.8)] sm:text-xs">
+                          4 jugadores · el doble más alto abre la partida
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={openLobby}
+                        className="group flex flex-col items-center gap-1.5 rounded-2xl outline-none transition-transform duration-150 hover:-rotate-1 hover:scale-[1.04] focus-visible:ring-2 focus-visible:ring-emerald-200 active:translate-y-[3px] active:scale-[0.99]"
+                        aria-label="Multijugador local por WiFi"
+                      >
+                        <span className="relative block">
+                          {/* placa cómic esmeralda para el multijugador */}
+                          <svg viewBox="0 0 320 124" className="w-56 sm:w-64" aria-hidden>
+                            <path d={BADGE_PATH} transform="translate(8 9)" fill="#04301f" />
+                            <path
+                              d={BADGE_PATH}
+                              fill="#34d399"
+                              stroke="#064e3b"
+                              strokeWidth="6"
+                              strokeLinejoin="round"
+                            />
+                            <g stroke="#064e3b" strokeWidth="3" strokeLinecap="round" opacity="0.85">
+                              <path d="M50 32 l14 -9" />
+                              <path d="M266 32 l12 8" />
+                              <path d="M38 78 l12 8" />
+                            </g>
+                          </svg>
+                          <span
+                            aria-hidden
+                            className="absolute inset-x-0 top-0 bottom-[10px] flex items-center justify-center text-[22px] font-black uppercase tracking-[0.04em] text-[#064e3b] sm:text-[26px]"
+                          >
+                            Multiplayer
+                          </span>
+                        </span>
+                        <span className="text-[11px] font-semibold text-emerald-100/85 [text-shadow:0_1px_2px_rgba(0,0,0,0.95),0_0_8px_rgba(0,0,0,0.8)] sm:text-xs">
+                          Crea una sala y juega por WiFi
+                        </span>
+                      </button>
+                    </div>
+                  </TableIntro>
+                )}
               </div>
             </div>
 
@@ -706,7 +906,7 @@ export default function DominoPage() {
       {/* Pie pegado al fondo */}
       <footer className="mt-auto border-t border-white/5 bg-zinc-950 py-4">
         <p className="px-4 text-center text-xs text-zinc-600">
-          🀄 Salón de Dominó · Juego clásico de dominó para 4 jugadores
+          🀄 MyBrothar · Dominó clásico para 4 jugadores
         </p>
       </footer>
 
@@ -734,8 +934,11 @@ export default function DominoPage() {
       <ResultDialog
         open={!!state && state.phase === 'finished' && !!state.outcome}
         outcome={state?.outcome ?? null}
-        onReplay={startGame}
-        onClose={() => dispatch({ type: 'RESET' })}
+        onReplay={multiView ? handleRematch : startGame}
+        onClose={() => (multiView ? exitMulti() : dispatch({ type: 'RESET' }))}
+        seatNames={multiView ? multiView.seatNames : undefined}
+        replayLabel={multiView ? (multiView.isHost ? '🔁 Revancha' : '⏳ Esperando revancha…') : undefined}
+        replayDisabled={!!multiView && !multiView.isHost}
       />
 
       <AlertDialog open={confirmLeave} onOpenChange={setConfirmLeave}>

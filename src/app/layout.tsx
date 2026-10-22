@@ -14,10 +14,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "🀄 Salón de Dominó Online",
+  title: "🀄 MyBrothar · Dominó 4 jugadores",
   description:
-    "Dominó clásico para 4 jugadores: entra directo a la mesa, juega contra 3 bots y gana la partida.",
-  keywords: ["dominó", "domino", "juego", "mesa", "online", "clásico"],
+    "MyBrothar: dominó clásico para 4 jugadores. Partida rápida contra bots o multijugador local por WiFi creando y uniéndote a salas.",
+  keywords: ["dominó", "domino", "mybrothar", "juego", "mesa", "multijugador", "wifi", "clásico"],
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },

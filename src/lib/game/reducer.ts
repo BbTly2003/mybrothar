@@ -1,7 +1,7 @@
 // Reducer puro del juego. Las acciones con aleatoriedad (crear partida) se preparan fuera.
 
 import type { GameState, Side } from './types'
-import { SEAT_NAMES } from './types'
+import { seatName } from './types'
 import { chooseBotMove, orientTile, resolveBlocked, sidesFor } from './engine'
 
 export type GameAction =
@@ -50,7 +50,7 @@ export function gameReducer(state: GameState | null, action: GameAction): GameSt
       const hands = state.hands.map((h, i) => (i === player ? h.filter((t) => t.id !== tileId) : h))
 
       const playedLabel = `[${tile.a}|${tile.b}]`
-      const { log, logSeq } = addLog(state, `${SEAT_NAMES[player]} jugó ${playedLabel}.`, 'play')
+      const { log, logSeq } = addLog(state, `${seatName(state, player)} jugó ${playedLabel}.`, 'play')
 
       // ¿Fin por quedarse sin fichas?
       if (hands[player].length === 0) {
@@ -64,7 +64,7 @@ export function gameReducer(state: GameState | null, action: GameAction): GameSt
           : {
               type: 'loss',
               winnerSeat: player,
-              message: `${SEAT_NAMES[player]} se quedó sin fichas y gana la partida.`,
+              message: `${seatName(state, player)} se quedó sin fichas y gana la partida.`,
             }
         return {
           ...state,
@@ -105,7 +105,7 @@ export function gameReducer(state: GameState | null, action: GameAction): GameSt
       if (state.chain.length > 0 && hasMove) return state
 
       const passesInRow = state.passesInRow + 1
-      const { log, logSeq } = addLog(state, `${SEAT_NAMES[player]} pasa su turno.`, 'pass')
+      const { log, logSeq } = addLog(state, `${seatName(state, player)} pasa su turno.`, 'pass')
 
       // Mesa bloqueada: 4 pases consecutivos
       if (passesInRow >= 4) {
