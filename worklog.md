@@ -144,3 +144,26 @@ Work Log:
 Stage Summary:
 - Los perfiles con sus fichas en mano (boca abajo) ahora rodean la mesa por fuera como en la app Plato; el fieltro muestra ÚNICAMENTE las fichas jugadas, organizadas en serpentina centrada con los extremos abiertos marcados en esmeralda.
 - Sin cambios de reglas ni de APIs (solo presentación): motor, reducer y endpoints intactos. BD limpia para el usuario.
+
+---
+Task ID: 8
+Agent: Z.ai Code (main agent)
+Task: "busca en la web imágenes de un juego de dominó para que veas cómo se organizan las fichas encima de la mesa" — replicar el acomodo auténtico
+
+Work Log:
+- Búsqueda de imágenes reales con image-search (2 consultas, ~12 fotos analizadas): partida real con U-turns en los bordes, guía wikiHow con giros en L, dominó cubano con dobles en cruz y mesa caribeña de 4 jugadores. Conclusiones: fichas toca-toca SIN huecos, dobles SIEMPRE perpendiculares, giros con ficha esquina perpendicular que conecta filas, pips coincidentes visibles en cada costura y giro.
+- board-chain.tsx reescrito por completo: la serpentina de filas separadas pasó a ser una SERPIENTE CONTINUA auténtica posicionada con coordenadas absolutas:
+  * computeSnake simula el recorrido por niveles (md 88px → sm 64px → xs 50px, lado corto = mitad) y elige el mayor que quepa en el presupuesto de alto (390 escritorio / 330 móvil).
+  * Fichas normales tumbadas extremo-con-extremo (gap 0), dobles EN CRUZ (sobresalen media ficha por cada lado de la línea).
+  * Al llenarse una fila, la ficha del giro se coloca PERPENDICULAR colgando bajo el extremo de la fila (como el giro en L/U de una mesa real) y la fila siguiente regresa en dirección contraria alineada con la esquina.
+  * PITCH ADAPTATIVO: la fila siguiente nace pegada al pie de la esquina; si la ficha que cuelga arriba era un doble en cruz la esquina baja medio lado, y si la primera ficha de la fila nueva es doble necesita medio lado más de aire → cero solapamientos con toque exacto en todos los casos.
+  * Filas hacia la izquierda muestran las mitades intercambiadas para que los pips que se tocan (y los del giro) queden alineados; los extremos de la cadena conservan el aro esmeralda.
+  * Contenedor con alto real; el bloque se centra horizontalmente (bounding box) y el fieltro crece si la serpiente es larguísima.
+- domino-tile.tsx: nueva prop style (la serpiente fuerza el tamaño exacto en px por ficha, eliminando la discrepancia de clases sm/md en móvil).
+- Auditoría geométrica por DOM en cada iteración: 24 fichas (escritorio) y 23 (móvil) con 0 solapamientos, distancia 0 entre fichas consecutivas (incluidos giros), todo dentro del fieltro y costuras right[i]===left[i+1] al 100%.
+- Fixes durante verificación: (1) faltaba desplazar las Y al normalizar (las fichas de la fila 0 sobresalían 11px por arriba del fieltro); (2) solapamiento de 0.5·tS entre esquina y doble en cruz en los giros → pitch adaptativo; (3) el bucle de automatización pulsaba la ficha en vez de elegir lado cuando el diálogo estaba abierto (error del script de prueba, no del juego).
+- Capturas finales comparadas con las fotos reales: patrón idéntico (fila, U-turn perpendicular, fila de regreso, segundo U-turn). 0 errores de consola y de página; lint limpio.
+- BD reseteada a pristine (jugador "default": 1000 tokens, 0 partidas).
+
+Stage Summary:
+- Las fichas sobre la mesa ahora se organizan EXACTAMENTE como en un juego de dominó real: cadena continua toca-toca, dobles en cruz, giros perpendiculares que conectan las filas y pips coincidentes en cada unión. Motor, reducer y APIs intactos (solo presentación). BD limpia.

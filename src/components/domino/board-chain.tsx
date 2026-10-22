@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { cn } from '@/lib/utils'
 import { DominoTile } from './domino-tile'
 import type { PlacedTile } from '@/lib/game/types'
 
@@ -10,55 +9,141 @@ interface BoardChainProps {
   chain: PlacedTile[]
 }
 
-/** Métricas por nivel: ficha horizontal (ancho), doble en cruz (ancho), alto de fila, separación */
+/** Métricas por nivel: tL = lado largo de la ficha (tS = lado corto = tL/2) */
 const TIERS = [
-  { size: 'md', tileW: 88, dblW: 44, rowH: 92, gap: 8 },
-  { size: 'sm', tileW: 64, dblW: 32, rowH: 68, gap: 6 },
-  { size: 'xs', tileW: 50, dblW: 25, rowH: 54, gap: 5 },
+  { size: 'md', tL: 88 },
+  { size: 'sm', tL: 64 },
+  { size: 'xs', tL: 50 },
 ] as const
 
-const PAD_X = 12
-/**
- * Presupuesto de alto de la cadena. El fieltro ya es territorio exclusivo de
- * las fichas jugadas (perfiles y manos viven fuera de la mesa), así que la
- * serpentina puede respirar: si una fila extra hace falta, la mesa crece.
- */
+/** Margen interior para que el aro de los extremos no se recorte */
+const PAD = 10
+/** Presupuesto de alto de la serpiente (el fieltro crece si hace falta) */
 const BUDGET_DESKTOP = 390
 const BUDGET_MOBILE = 330
-const ROW_GAP = 4
 
-interface Layout {
-  rows: PlacedTile[][]
+interface Box {
+  tile: PlacedTile
+  x: number
+  y: number
+  w: number
+  h: number
+  /** true = ficha en vertical (dobles en cruz, esquinas y tramos de giro) */
+  vertical: boolean
+  /** true = mitad izquierda/right intercambiadas (filas que corren hacia la izquierda) */
+  swap: boolean
+}
+
+interface SnakeLayout {
+  boxes: Box[]
   tier: (typeof TIERS)[number]
+  width: number
+  height: number
   fits: boolean
 }
 
 /**
- * Reparte la cadena en filas serpenteantes (izq→der, luego der→izq, …) para que
- * todas las fichas queden organizadas sobre la mesa sin recortes ni scroll.
- * Elige el nivel de tamaño más grande cuya pila de filas quepa en el presupuesto.
+ * Serpiente auténtica de dominó (como en las fotos de partidas reales):
+ * - fichas tumbadas toca-toca, extremo con extremo, sin huecos;
+ * - los dobles van EN CRUZ (perpendiculares a la línea);
+ * - cuando una fila se llena, la ficha del giro se coloca PERPENDICULAR
+ *   colgando bajo el extremo de la fila (como el giro en L de una mesa real)
+ *   y la siguiente fila regresa en dirección contraria pegada a esa esquina;
+ * - los puntos que se tocan quedan alineados en cada costura y en cada giro.
  */
-function computeLayout(chain: PlacedTile[], width: number, budget: number): Layout | null {
-  if (width <= 0) return null
-  let fallback: Layout | null = null
+function computeSnake(chain: PlacedTile[], W: number, budget: number): SnakeLayout | null {
+  if (W <= 0) return null
+  let fallback: SnakeLayout | null = null
   for (const tier of TIERS) {
-    const maxW = Math.max(width - PAD_X * 2, tier.tileW)
-    const rows: PlacedTile[][] = [[]]
-    let rowWidth = 0
-    for (const tile of chain) {
-      const tileW = tile.left === tile.right ? tier.dblW : tier.tileW
-      const row = rows[rows.length - 1]
-      const needed = row.length === 0 ? tileW : rowWidth + tier.gap + tileW
-      if (needed > maxW && row.length > 0) {
-        rows.push([tile])
-        rowWidth = tileW
-      } else {
-        row.push(tile)
-        rowWidth = needed
+    const tL = tier.tL
+    const tS = tL / 2
+    const boxes: Box[] = []
+    let i = 0
+    let dir = 1 // 1 = hacia la derecha · -1 = hacia la izquierda
+    let cursor = PAD // para dir=1: borde izquierdo de la próxima ficha; para dir=-1: borde derecho
+    let yRow = 0 // línea central de la fila actual
+
+    while (i < chain.length) {
+      // --- tramo horizontal: coloca fichas mientras quepan ---
+      let placed = 0
+      let lastWasDouble = false
+      while (i < chain.length) {
+        const tile = chain[i]
+        const isDouble = tile.left === tile.right
+        const along = isDouble ? tS : tL
+        const remaining = dir === 1 ? W - PAD - cursor : cursor - PAD
+        if (placed > 0 && along > remaining) break // no cabe: aquí va la esquina
+        let x: number
+        if (dir === 1) {
+          x = cursor
+          cursor += along
+        } else {
+          cursor -= along
+          x = cursor
+        }
+        boxes.push(
+          isDouble
+            ? { tile, x, y: yRow - tL / 2, w: tS, h: tL, vertical: true, swap: false }
+            : {
+                tile,
+                x,
+                y: yRow - tS / 2,
+                w: tL,
+                h: tS,
+                vertical: false,
+                swap: dir === -1,
+              },
+        )
+        placed++
+        lastWasDouble = isDouble
+        i++
+      }
+      // --- esquina perpendicular (conecta esta fila con la siguiente) ---
+      if (i < chain.length) {
+        const tile = chain[i]
+        i++
+        // Cuelga bajo el extremo de la fila, alineada con su borde de salida.
+        // Si la ficha anterior era un doble en cruz, cuelga desde su borde.
+        const cornerTop = yRow + (lastWasDouble ? tL / 2 : tS / 2)
+        const cx = dir === 1 ? cursor - tS : cursor
+        boxes.push({
+          tile,
+          x: cx,
+          y: cornerTop,
+          w: tS,
+          h: tL,
+          vertical: true,
+          swap: false,
+        })
+        // La fila siguiente nace pegada al pie de la esquina; si su primera
+        // ficha es un doble en cruz necesita medio lado corto más de aire.
+        const cornerBottom = cornerTop + tL
+        const nextIsDouble = chain[i] !== undefined && chain[i].left === chain[i].right
+        yRow = cornerBottom + (nextIsDouble ? tS : tS / 2)
+        dir = -dir
+        // la próxima fila arranca alineada con la esquina
+        cursor = dir === 1 ? cx : cx + tS
       }
     }
-    const height = rows.length * tier.rowH + (rows.length - 1) * ROW_GAP
-    const layout: Layout = { rows, tier, fits: height <= budget }
+
+    // --- normalizar: recorte del bounding box + centrado horizontal ---
+    let minX = Infinity
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+    for (const b of boxes) {
+      minX = Math.min(minX, b.x)
+      maxX = Math.max(maxX, b.x + b.w)
+      minY = Math.min(minY, b.y)
+      maxY = Math.max(maxY, b.y + b.h)
+    }
+    const dx = Math.max(PAD, (W - (maxX - minX)) / 2) - minX
+    for (const b of boxes) {
+      b.x += dx
+      b.y -= minY
+    }
+    const height = maxY - minY
+    const layout: SnakeLayout = { boxes, tier, width: W, height, fits: height <= budget }
     // Si ningún nivel cabe del todo, se queda el más pequeño (la mesa crece)
     fallback = layout
     if (layout.fits) return layout
@@ -67,11 +152,9 @@ function computeLayout(chain: PlacedTile[], width: number, budget: number): Layo
 }
 
 /**
- * Cadena de fichas estilo Plato: lo ÚNICO que vive sobre el fieltro. Se organiza
- * sola en una serpentina centrada de filas alternadas; los dobles van en cruz y
- * los dos extremos abiertos llevan un aro esmeralda (ahí es donde se puede jugar).
- * En las filas que van de derecha a izquierda las mitades se muestran
- * intercambiadas para que los puntos que se tocan sigan coincidiendo.
+ * La cadena de fichas es lo ÚNICO que vive sobre el fieltro: serpiente continua
+ * y organizada como en una mesa real, con dobles en cruz, esquinas perpendiculares
+ * y aro esmeralda en los dos extremos abiertos (ahí es donde se puede jugar).
  */
 export function BoardChain({ chain }: BoardChainProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -123,7 +206,7 @@ export function BoardChain({ chain }: BoardChainProps) {
     return () => observer.disconnect()
   }, [])
 
-  const layout = useMemo(() => computeLayout(chain, width, budget), [chain, width, budget])
+  const layout = useMemo(() => computeSnake(chain, width, budget), [chain, width, budget])
 
   // Extremos abiertos de la cadena: primera y última ficha jugadas
   const endIds = useMemo(() => {
@@ -146,42 +229,29 @@ export function BoardChain({ chain }: BoardChainProps) {
           </div>
         </div>
       ) : layout ? (
-        <div className="flex flex-col items-center px-1 py-1" style={{ gap: ROW_GAP }}>
-          {layout.rows.map((row, rowIndex) => {
-            const reversed = rowIndex % 2 === 1
+        <div className="relative w-full" style={{ height: layout.height }}>
+          {layout.boxes.map((box, index) => {
+            const isNew = freshIds.has(box.tile.id)
             return (
-              <div
-                key={rowIndex}
-                className={cn('flex items-center justify-center', reversed && 'flex-row-reverse')}
-                style={{ minHeight: layout.tier.rowH, gap: layout.tier.gap }}
-                data-testid={`chain-row-${rowIndex}`}
+              <motion.div
+                key={box.tile.id}
+                data-testid={`snake-${index}`}
+                className="absolute"
+                style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+                initial={isNew ? { opacity: 0, scale: 0.5 } : false}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 480, damping: 26 }}
               >
-                {row.map((tile) => {
-                  const isDouble = tile.left === tile.right
-                  // En filas en dirección derecha→izquierda se intercambian las
-                  // mitades para que el extremo que conecta quede del lado correcto.
-                  const showTop = reversed && !isDouble ? tile.right : tile.left
-                  const showBottom = reversed && !isDouble ? tile.left : tile.right
-                  const isNew = freshIds.has(tile.id)
-                  return (
-                    <motion.div
-                      key={tile.id}
-                      initial={isNew ? { opacity: 0, scale: 0.5, y: -26 } : false}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 480, damping: 26 }}
-                    >
-                      <DominoTile
-                        size={layout.tier.size}
-                        orientation={isDouble ? 'vertical' : 'horizontal'}
-                        top={showTop}
-                        bottom={showBottom}
-                        glow={endIds.has(tile.id)}
-                        ariaLabel={`Ficha ${tile.left} y ${tile.right} en la mesa`}
-                      />
-                    </motion.div>
-                  )
-                })}
-              </div>
+                <DominoTile
+                  size={layout.tier.size}
+                  orientation={box.vertical ? 'vertical' : 'horizontal'}
+                  top={box.swap ? box.tile.right : box.tile.left}
+                  bottom={box.swap ? box.tile.left : box.tile.right}
+                  glow={endIds.has(box.tile.id)}
+                  style={{ width: '100%', height: '100%' }}
+                  ariaLabel={`Ficha ${box.tile.left} y ${box.tile.right} en la mesa`}
+                />
+              </motion.div>
             )
           })}
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, type CSSProperties } from 'react'
 import { cn } from '@/lib/utils'
 
 /** Posiciones de los puntos en una cuadrícula 3×3 para cada valor 0-6 (ficha vertical) */
@@ -108,6 +108,8 @@ export interface DominoTileProps {
   glow?: boolean
   onClick?: () => void
   className?: string
+  /** estilo inline (la serpiente de la mesa fuerza el tamaño exacto en px) */
+  style?: CSSProperties
   ariaLabel?: string
 }
 
@@ -128,6 +130,7 @@ export const DominoTile = memo(function DominoTile({
   glow = false,
   onClick,
   className,
+  style,
   ariaLabel,
 }: DominoTileProps) {
   const sizeConfig = TILE_SIZES[size]
@@ -142,6 +145,7 @@ export const DominoTile = memo(function DominoTile({
       onClick={interactive ? onClick : undefined}
       disabled={!interactive}
       aria-label={ariaLabel}
+      style={style}
       className={cn(
         'relative flex shrink-0 select-none items-center justify-center border border-black/20 p-0 transition-all duration-150',
         box,
