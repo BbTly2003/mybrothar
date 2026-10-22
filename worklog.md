@@ -258,3 +258,22 @@ Work Log:
 
 Stage Summary:
 - El juego ahora es como una partida real: sin botón de pase (pasa solo), sin diálogo de lado (arrastras la ficha al extremo que quieras), y las fichas jugables se ven levantadas de un vistazo. Motor, rotación a la derecha, apertura por doble más alto, serpiente, dobles en cruz y bots permanecen idénticos. Exactitud de las 28 fichas probada masivamente (5.000 partidas, 0 errores).
+
+---
+Task ID: 14
+Agent: Z.ai Code (main agent)
+Task: «quiero que las fichas se vean como estas, solo el aspecto de las fichas, no adaptes más nada de esa imagen» (domino.avif) — dar a las fichas el aspecto de las fichas físicas reales de marfil de la foto
+
+Work Log:
+- Analizada la foto de referencia (domino.avif convertida a PNG): fichas físicas clásicas de MARFIL — cuerpo crema cálido con brillo suave, puntos azul noche casi negro, línea divisoria oscura grabada casi de borde a borde con clavo central (spinner), esquinas redondeadas, grosor/bisel físico y sombras cálidas sobre la madera.
+- Restyle EXCLUSIVO de src/components/domino/domino-tile.tsx (única fuente de renderizado de fichas; seats/cápsulas y mesa sin tocar):
+  * Cuerpo: gradiente marfil 160deg (#f8f2e1 → #f2ead4 → #e3d8bb) con borde hueso #b7a986; reverso (faceDown) marfil más apagado conservando su punto esmeralda distintivo.
+  * Puntos (pips): zinc-900 → azul noche #1f2434 con efecto taladro (sombra interior arriba + brillo abajo). PIP_POSITIONS y retícula 3×3 INTACTAS (cero cambios de lógica/posiciones).
+  * Divisoria: nuevo componente Divider — ranura oscura #2b3040 al 85% que pasa de 58% al 84% del ancho (como la foto, casi borde a borde) con brillo claro adyacente (grabado) y CLAVO CENTRAL (spinner) del tamaño del punto según tier (3/4/5/6 px).
+  * Bisel 3D: luz superior/izquierda + sombra interior cálida abajo; sombra proyectada cambia de negro a marrón madera rgba(58,36,14,…).
+  * TODA la señalización de juego intacta: jugable levantada -8px con aro esmeralda (+hover -16px), highlight ámbar, glow de extremos, brightness de no jugables, tamaños xs/sm/md/lg, orientaciones y dobles en cruz.
+- FIX preventivo crucial: la primera versión interpolaba template literals (`shadow-[${BEVEL},…]`) — Tailwind NO genera clases dinámicas; reescrito con TODOS los shadow-[…] como literales completos estáticos.
+- E2E (agent-browser, 1280×800 y 375×812): Jugar → apertura [6|6] de Lola en cruz con look marfil ✓ → DRAG REAL de [4|6] al extremo derecho (mouse down/move/up) → «Tú jugó [4|6]» y la partida siguió sola: Kira[4|4] → Max[5|5] → Lola[1|5], serpentina completa con el nuevo aspecto, extremos con glow, mano actualizada con jugables levantadas ✓. Zoom a la mano: cuerpo crema, puntos azul noche, ranura + spinner visibles. Cara trasera marfil con punto esmeralda en cápsulas rivales ✓. 0 errores de consola/página; lint limpio; dev.log sin errores.
+
+Stage Summary:
+- Las fichas ahora se ven como las de la foto: marfil real, puntos azul noche, divisoria grabada con clavo central, bisel y sombras cálidas — SOLO el aspecto; ni una sola mecánica, medida, posición o señal de juego cambió (drag & drop, auto-pase, lift de jugables, serpiente, rotación a la derecha: todo intacto).
