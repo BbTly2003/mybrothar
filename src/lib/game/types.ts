@@ -66,9 +66,9 @@ export interface GameState {
 }
 
 /**
- * Nombres por asiento. El turno SIEMPRE avanza (turn + 1) % 4 y los asientos
- * están dispuestos en sentido HORARIO alrededor de la mesa (manecillas del reloj):
- *   Tú (abajo) → Lola (izquierda) → Max (frente/arriba) → Kira (derecha) → Tú
+ * Nombres por asiento. El turno SIEMPRE pasa al jugador de la DERECHA del que
+ * acaba de jugar (visto desde arriba la mesa avanza en sentido antihorario):
+ *   Tú (abajo) → Kira (derecha) → Max (frente/arriba) → Lola (izquierda) → Tú
  */
 export const SEAT_NAMES = ['Tú', 'Lola', 'Max', 'Kira'] as const
 

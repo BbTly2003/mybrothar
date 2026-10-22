@@ -187,3 +187,21 @@ Work Log:
 Stage Summary:
 - El turno ahora gira SIEMPRE en sentido HORARIO (manecillas del reloj) alrededor de la mesa: Tú(abajo) → Lola(izquierda) → Max(frente) → Kira(derecha) → Tú, verificado dos vueltas completas por bitácora y geometría DOM en escritorio y móvil.
 - Sin cambios de reglas ni de APIs: motor, reducer y endpoints intactos (el giro horario se logró reordenando la disposición visual de los asientos). BD limpia para el usuario.
+
+---
+Task ID: 10
+Agent: Z.ai Code (main agent)
+Task: "lo que quiero es el orden de juego es desde la primera ficha que se juega el juego sigue hacia la derecha no entiendes?" — el turno debe pasar SIEMPRE al jugador de la DERECHA del que acaba de jugar
+
+Work Log:
+- Aclaración del usuario: la Task 9 interpretó "hacia la derecha" como giro horario visto desde arriba (pasando a la IZQUIERDA de cada jugador sentado) — era lo contrario de lo que quería. La regla real deseada: tras cada jugada el turno va al vecino de la DERECHA (convención clásica del dominó; visto desde arriba avanza en sentido antihorario).
+- reducer.ts: rotación de turno invertida en APPLY_PLAY y APPLY_PASS: (player + 1) % 4 → (player + 3) % 4, con comentario: Tú(abajo) → Kira(derecha) → Max(frente) → Lola(izquierda) → Tú. Auditoría con grep: no había más supuestos de rotación en el código (bots, bloqueo, logs y resultados son agnósticos a la dirección).
+- types.ts y page.tsx: comentarios actualizados al nuevo sentido (se mantienen las posiciones de la Task 9: Lola izq, Max frente, Kira der — geometría real del dominó con el rival enfrente).
+- Verificación E2E (1280×800): bitácora de DOS vueltas completas partiendo de la primera ficha — Kira(derecha) abre [6|6] → Max(frente) [5|6] → Lola(izquierda) [4|5] → Tú(abajo) [0|6] → Kira [4|4] → Max [4|6] → Lola [0|0] → Tú: cada pase va exactamente al jugador situado a la DERECHA del anterior, incluida la continuidad desde la primera ficha (el que abre el doble más alto pasa al de su derecha).
+- Verificación móvil (375×812): layout intacto (Lola|Max|Kira arriba, serpentina en el fieltro), 0 errores de consola y de página. Lint limpio.
+- Hallazgo colateral: el registro de partida "win +400" (01:13:19) se creó DESPUÉS del reset de la Task 9 con el navegador del agente ya cerrado y su partida bloqueada en el turno humano → proviene de una sesión concurrente del usuario en el panel de vista previa (lleva jugando en paralelo; explica también el saldo 600 visto en la Task 9). NO es un bug de doble reporte.
+- BD: en vez del reset agresivo habitual se PRESERVÓ la victoria real del usuario: tokens 1300 → 1400 (reembolso de los 100 de la apuesta de la partida de prueba del agente, que se abandonó sin reportar). Records intactos (solo "win +400").
+
+Stage Summary:
+- Desde la primera ficha, el juego continúa SIEMPRE hacia la DERECHA: Tú → Kira(derecha) → Max(frente) → Lola(izquierda) → Tú, verificado dos vueltas completas por bitácora. Posiciones de asientos y mesas intactas; motor sin más cambios.
+- El saldo y el historial reales del usuario se conservaron (1400 tokens, 1 victoria +400); solo se revirtió la apuesta de la partida de prueba del agente.

@@ -481,7 +481,8 @@ export default function DominoPage() {
               </div>
 
               {/* Rivales alrededor de la mesa: perfiles y sus fichas en mano, FUERA del fieltro.
-                  ORDEN DE JUEGO HORARIO (manecillas del reloj): Tú(abajo) → Lola(izq) → Max(frente) → Kira(der) */}
+                  ORDEN DE JUEGO: desde la primera ficha, el turno pasa SIEMPRE a la DERECHA de cada jugador:
+                  Tú(abajo) → Kira(derecha) → Max(frente) → Lola(izquierda) → Tú */}
               <div className="mb-2 flex items-end justify-between gap-1 md:mb-3 md:justify-center">
                 <Seat
                   seat={1}
@@ -499,7 +500,7 @@ export default function DominoPage() {
               </div>
 
               <div className="flex items-center justify-center gap-2 sm:gap-4">
-                {/* Lola a la izquierda (escritorio): el turno gira horario Tú→Lola→Max→Kira */}
+                {/* Lola a la izquierda (escritorio): recibe el turno desde el frente y lo devuelve a Tú */}
                 <Seat
                   seat={1}
                   count={botCounts[0]}
@@ -561,7 +562,7 @@ export default function DominoPage() {
                   </section>
                 </div>
 
-                {/* Kira a la derecha (escritorio): cierra el giro horario volviendo a Tú */}
+                {/* Kira a la derecha (escritorio): recibe el turno de Tú — el juego corre hacia la derecha */}
                 <Seat
                   seat={3}
                   count={botCounts[2]}

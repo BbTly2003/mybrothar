@@ -87,7 +87,10 @@ export function gameReducer(state: GameState | null, action: GameAction): GameSt
         ...state,
         hands,
         chain,
-        turn: (player + 1) % 4,
+        // El turno pasa SIEMPRE al jugador de la DERECHA del que acaba de jugar
+        // (asientos: 0=Tú abajo, 1=Lola izq, 2=Max frente, 3=Kira der):
+        // Tú → Kira → Max → Lola → Tú
+        turn: (player + 3) % 4,
         requiredFirstTileId: null,
         passesInRow: 0,
         lastSide: side,
@@ -123,7 +126,8 @@ export function gameReducer(state: GameState | null, action: GameAction): GameSt
       return {
         ...state,
         passesInRow,
-        turn: (player + 1) % 4,
+        // El turno pasa SIEMPRE al jugador de la DERECHA (mismo sentido que APPLY_PLAY)
+        turn: (player + 3) % 4,
         log,
         logSeq,
       }
