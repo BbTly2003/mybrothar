@@ -669,8 +669,8 @@ export function TableIntro({ children }: { children: ReactNode }) {
           />
         )}
 
-        {/* ---- contenido (botón) al final, con halo de brasas ---- */}
-        <div className="relative flex h-full w-full flex-col items-center justify-center gap-5 p-3">
+        {/* ---- contenido (botón) al final, con halo de brasas: sobre las fichas ---- */}
+        <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-5 p-3">
           {phase === 'ready' && (
             <motion.div
               className="relative flex flex-col items-center gap-5"
@@ -681,7 +681,7 @@ export function TableIntro({ children }: { children: ReactNode }) {
               {/* halo pulsante de energía detrás del botón */}
               {!reduced && (
                 <motion.span
-                  className="pointer-events-none absolute -inset-3 rounded-[2.4rem] bg-emerald-300/20 blur-lg"
+                  className="pointer-events-none absolute -inset-3 rounded-[2.4rem] bg-purple-300/25 blur-lg"
                   aria-hidden
                   animate={{ opacity: [0.3, 0.65, 0.3], scale: [0.97, 1.03, 0.97] }}
                   transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
@@ -690,7 +690,7 @@ export function TableIntro({ children }: { children: ReactNode }) {
               {/* chispa eléctrica de entrada */}
               {!reduced && (
                 <motion.span
-                  className="pointer-events-none absolute -inset-1.5 rounded-[2.1rem] border-2 border-emerald-100/80"
+                  className="pointer-events-none absolute -inset-1.5 rounded-[2.1rem] border-2 border-purple-100/80"
                   aria-hidden
                   initial={{ opacity: 0.95, scale: 1.18 }}
                   animate={{ opacity: 0, scale: 1 }}

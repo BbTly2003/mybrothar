@@ -345,3 +345,23 @@ Work Log:
 
 Stage Summary:
 - El botón Jugar es ahora notablemente más compacto (menos padding, letra e icono), manteniendo glass/estilo esmeralda, halo pulsante y funcionalidad intacta.
+
+---
+Task ID: 19
+Agent: Z.ai Code (main agent)
+Task: «quiero algo como esto pero de color morado» (play game.avif) — botón Jugar estilo cómic morado
+
+Work Log:
+- Analizada la referencia (upload/play game.avif): placa rectangular redondeada con BORDES DENTADOS tipo pegamento rasgado, contorno grueso oscuro, SOMBRA DURA desplazada abajo-derecha y texto grueso en mayúsculas — estilo cómic/sticker.
+- page.tsx: nuevo botón JUGAR como placa SVG vectorial (BADGE_PATH constante module-scope, viewBox 320×124, determinista SSR-safe):
+  * Sombra dura: mismo path trasladado (8,9) en morado noche #2e0a49.
+  * Placa: relleno morado #a855f7 (Tailwind purple-500) + contorno #3b0764 de 6 unidades con strokeLinejoin round.
+  * 3 muescas cómic interiores (trazos cortos #3b0764) + etiqueta «JUGAR» absolute centrada, font-black uppercase #3b0764 (26/30px).
+  * Hover cómic: -rotate-1 + scale 1.04; active: se hunde 3px; focus ring purple-200. Subtítulo «4 jugadores · el doble más alto abre la partida» bajo la placa en purple-100/85.
+  * Eliminado el estilo glass anterior (border/backdrop-blur) y el icono Play del import (ya no se usa).
+- table-intro.tsx: halo pulsante bg-emerald-300 → bg-purple-300/25 y chispa de entrada border-emerald-100 → border-purple-100/80 (acorde al morado).
+- FIX de capas: el contenido (botón+subtítulo) quedaba DEBAJO de las fichas dispersas (z-index 1-8 de tiles vs z-auto) → capa de contenido subida a z-10; subtítulo ahora siempre legible.
+- Verificación E2E: capturas escritorio/móvil (placa dentada morada, sombra dura, texto grueso, subtítulo completo) ✓; click Jugar → partida arranca (7 fichas) ✓; móvil 375×812 ✓; lint limpio; 0 errores de consola.
+
+Stage Summary:
+- El botón Jugar es ahora una placa cómic morada idéntica en espíritu a la referencia: silueta dentada, borde grueso morado noche, sombra dura desplazada y JUGAR en grueso — vectorial 4K, con micro-interacciones de prensa y halo morado en la intro. Sin cambios de mecánica.

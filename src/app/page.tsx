@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from 'react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { LogOut, Play, Volume2, VolumeX } from 'lucide-react'
+import { LogOut, Volume2, VolumeX } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -30,6 +30,16 @@ import type { Side, Tile } from '@/lib/game/types'
 import { SEAT_NAMES } from '@/lib/game/types'
 import { getMutedSnapshot, playSfx, setSfxMuted, subscribeMuted } from '@/lib/sfx'
 import { cn } from '@/lib/utils'
+
+// ---------- Placa cómic del botón JUGAR (silueta dentada tipo peg tearing) ----------
+
+const BADGE_PATH =
+  'M 44 14 L 62 6 L 76 16 L 94 12 L 106 20 L 120 12 L 142 8 L 154 16 L 176 12 ' +
+  'L 192 3 L 206 13 L 228 12 L 240 18 L 254 10 L 272 14 Q 292 16 294 34 ' +
+  'L 304 46 L 294 56 L 308 66 L 296 76 Q 298 92 280 98 L 264 106 L 250 98 ' +
+  'L 232 102 L 220 92 L 206 102 L 186 100 L 172 112 L 158 100 L 138 102 ' +
+  'L 124 92 L 112 102 L 92 100 L 78 110 L 64 100 L 48 102 Q 28 100 22 84 ' +
+  'L 12 72 L 24 62 L 10 50 L 22 40 Q 24 20 44 14 Z'
 
 // ---------- Drag & drop de fichas hacia la mesa ----------
 
@@ -585,14 +595,46 @@ export default function DominoPage() {
                 <TableIntro>
                   <button
                     onClick={startGame}
-                    className="flex flex-col items-center gap-1.5 rounded-2xl border-2 border-emerald-300/40 bg-emerald-400/10 px-6 py-3.5 shadow-inner backdrop-blur-[2px] transition-all hover:border-emerald-300/70 hover:bg-emerald-400/20 active:scale-[0.98] sm:px-9"
+                    className="group flex flex-col items-center gap-1.5 rounded-2xl outline-none transition-transform duration-150 hover:-rotate-1 hover:scale-[1.04] focus-visible:ring-2 focus-visible:ring-purple-200 active:translate-y-[3px] active:scale-[0.99]"
                     aria-label="Jugar una partida de dominó"
                   >
-                    <span className="flex items-center gap-2 text-xl font-black tracking-wide text-emerald-100 sm:text-2xl">
-                      <Play className="h-5 w-5 fill-current sm:h-5 sm:w-5" aria-hidden />
-                      Jugar
+                    <span className="relative block">
+                      {/* placa estilo cómic: silueta dentada, sombra dura y borde grueso */}
+                      <svg viewBox="0 0 320 124" className="w-64 sm:w-72" aria-hidden>
+                        {/* sombra dura desplazada */}
+                        <path
+                          d={BADGE_PATH}
+                          transform="translate(8 9)"
+                          fill="#2e0a49"
+                        />
+                        {/* placa morada con contorno grueso */}
+                        <path
+                          d={BADGE_PATH}
+                          fill="#a855f7"
+                          stroke="#3b0764"
+                          strokeWidth="6"
+                          strokeLinejoin="round"
+                        />
+                        {/* muescas cómic dentro de la placa */}
+                        <g
+                          stroke="#3b0764"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          opacity="0.85"
+                        >
+                          <path d="M50 32 l14 -9" />
+                          <path d="M266 32 l12 8" />
+                          <path d="M38 78 l12 8" />
+                        </g>
+                      </svg>
+                      <span
+                        aria-hidden
+                        className="absolute inset-x-0 top-0 bottom-[10px] flex items-center justify-center text-[26px] font-black uppercase tracking-[0.06em] text-[#3b0764] sm:text-[30px]"
+                      >
+                        Jugar
+                      </span>
                     </span>
-                    <span className="text-[11px] font-semibold text-emerald-200/70 sm:text-xs">
+                    <span className="text-[11px] font-semibold text-purple-100/85 sm:text-xs">
                       4 jugadores · el doble más alto abre la partida
                     </span>
                   </button>
