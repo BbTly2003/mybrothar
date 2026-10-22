@@ -297,3 +297,20 @@ Work Log:
 
 Stage Summary:
 - Fichas calidad Full HD real: dibujo vectorial (nítido en cualquier pantalla) con material de marfil verosímil — grano, pulido, bisel, puntos taladrados y spinner. Cero cambios de mecánica, tamaños, posiciones o señales de juego; drag & drop, auto-pase y serpiente intactos.
+
+---
+Task ID: 16
+Agent: Z.ai Code (main agent)
+Task: «efecto especial al abrir la app: tiran a la mesa todas las fichas, luego cae un rayo que quiebra la mesa y entonces aparece el botón de Jugar»
+
+Work Log:
+- Nuevo componente src/components/domino/table-intro.tsx (máquina de fases pre→throwing→bolt→crack→ready) montado dentro del fieltro del estado vacío de page.tsx (el botón Jugar ahora es su children, con backdrop-blur para leerse sobre las fichas).
+- FASE 1 «throwing» (0–1.9s): las 28 fichas REALES de la baraja ([0|0]…[6|6], barajadas Fisher–Yates) salen volando desde fuera de la pantalla hacia posiciones aleatorias del fieltro (muelles framer-motion, escalonado 45ms/ficha, rotaciones -42°..42°, orientación mezclada, hueco reservado en el centro para el botón, separación mínima según tamaño xs/sm según ancho).
+- FASE 2 «bolt» (1.9s): RAYO SVG ramificado (trazo blanco + glow, flicker 0.55s) que cae al centro + FOGONAZO blanco a pantalla completa (fixed z-60, opacidad pulsante) + SACUDIDA de la mesa (keyframes x/y 0.45s).
+- FASE 3 «crack» (2.15s): la mesa QUIEBRA — 8 brazos de grieta + 6 ramillas SVG (pathLength animado, trazo oscuro + brillo interior desplazado, non-scaling-stroke), hundimiento radial en el impacto, las 28 fichas brincan (delay escalonado) y 12 esquirlas (marfil + fieltro verde) salen despedidas con rotación y fade.
+- FASE 4 «ready» (3.05s): aparece el botón JUGAR (spring scale+fade). La escena queda como decoración: mesa rota con las fichas desparramadas.
+- Extras: tocar la pantalla SALTA la intro directamente a ready (el click no llega al botón porque aún no existe); respeta prefers-reduced-motion (ready directo, sin animación); SSR seguro (nada de Math.random en render inicial — todo se genera en el efecto cliente, sin mismatch de hidratación); aria-hidden en capas decorativas; limpieza de timers en unmount.
+- Verificación E2E con sondeo temporal (reload + eval cada 250ms): 0–1500ms throwing sin botón → 1751ms bolt → 2002–2752ms crack → 3003ms ready CON botón (exacto al diseño). Skip: click en «throwing» → ready+botón al instante ✓. Click en Jugar → arranca la partida (bots jugando) ✓. Escritorio 1280×800 y móvil 375×812 verificados con capturas. 0 errores de consola/página; lint limpio; dev.log sin errores.
+
+Stage Summary:
+- El menú ahora abre con una cinemática: llueven las 28 fichas sobre la mesa, un rayo parte el fieltro en dos con fogonazo y sacudida, y sobre la mesa quebrada aparece JUGAR (saltable con un toque, ~3s de duración). Sin cambios en el motor ni en ninguna otra pantalla.

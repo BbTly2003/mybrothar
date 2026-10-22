@@ -22,6 +22,7 @@ import { DominoTile } from '@/components/domino/domino-tile'
 import { GameLog } from '@/components/domino/game-log'
 import { ResultDialog } from '@/components/domino/result-dialog'
 import { Seat } from '@/components/domino/seat'
+import { TableIntro } from '@/components/domino/table-intro'
 
 import { chooseBotMove, createGame, getEnds, sidesFor } from '@/lib/game/engine'
 import { gameReducer } from '@/lib/game/reducer'
@@ -577,40 +578,25 @@ export default function DominoPage() {
             </div>
           </div>
         ) : (
-          /* Mesa vacía: invitación a jugar */
+          /* Mesa vacía: intro cinematográfica (rayo + fichas) e invitación a jugar */
           <div className="mx-auto w-full max-w-3xl">
             <div className="plato-table relative select-none rounded-[2rem] border-[6px] border-emerald-800 p-[6px] sm:rounded-[2.75rem] sm:border-8 sm:p-2">
-              <div className="plato-felt relative flex min-h-[400px] flex-col items-center justify-center gap-5 overflow-hidden rounded-[1.5rem] p-3 sm:min-h-[440px] sm:rounded-[2rem] sm:p-4">
-                {/* Fichas decorativas FUERA del botón: un <button> no puede contener otro <button> */}
-                <span className="flex items-end gap-3" aria-hidden>
-                  <DominoTile
-                    top={6}
-                    bottom={6}
-                    size="md"
-                    orientation="vertical"
-                    className="rotate-[-8deg] shadow-lg"
-                  />
-                  <DominoTile
-                    top={5}
-                    bottom={2}
-                    size="md"
-                    orientation="vertical"
-                    className="rotate-[7deg] shadow-lg"
-                  />
-                </span>
-                <button
-                  onClick={startGame}
-                  className="flex flex-col items-center gap-2.5 rounded-3xl border-2 border-emerald-300/40 bg-emerald-400/10 px-9 py-6 shadow-inner transition-all hover:border-emerald-300/70 hover:bg-emerald-400/20 active:scale-[0.98] sm:px-14"
-                  aria-label="Jugar una partida de dominó"
-                >
-                  <span className="flex items-center gap-2.5 text-2xl font-black tracking-wide text-emerald-100 sm:text-3xl">
-                    <Play className="h-6 w-6 fill-current sm:h-7 sm:w-7" aria-hidden />
-                    Jugar
-                  </span>
-                  <span className="text-xs font-semibold text-emerald-200/70 sm:text-sm">
-                    4 jugadores · el doble más alto abre la partida
-                  </span>
-                </button>
+              <div className="plato-felt relative min-h-[400px] overflow-hidden rounded-[1.5rem] sm:min-h-[440px] sm:rounded-[2rem]">
+                <TableIntro>
+                  <button
+                    onClick={startGame}
+                    className="flex flex-col items-center gap-2.5 rounded-3xl border-2 border-emerald-300/40 bg-emerald-400/10 px-9 py-6 shadow-inner backdrop-blur-[2px] transition-all hover:border-emerald-300/70 hover:bg-emerald-400/20 active:scale-[0.98] sm:px-14"
+                    aria-label="Jugar una partida de dominó"
+                  >
+                    <span className="flex items-center gap-2.5 text-2xl font-black tracking-wide text-emerald-100 sm:text-3xl">
+                      <Play className="h-6 w-6 fill-current sm:h-7 sm:w-7" aria-hidden />
+                      Jugar
+                    </span>
+                    <span className="text-xs font-semibold text-emerald-200/70 sm:text-sm">
+                      4 jugadores · el doble más alto abre la partida
+                    </span>
+                  </button>
+                </TableIntro>
               </div>
             </div>
 
