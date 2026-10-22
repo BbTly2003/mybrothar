@@ -52,3 +52,10 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# internal tool artifacts
+tool-results/
+
+# local sqlite database (run: bun run db:push to recreate)
+db/*.db
+db/*.db-journal
