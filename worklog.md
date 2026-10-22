@@ -333,3 +333,15 @@ Work Log:
 
 Stage Summary:
 - La intro del menú es ahora una cinemática 4K completa: tormenta que oscurece, lluvia 3D de las 28 fichas con sombras y polvo, rayo multicapa con trueno y sacudida de cámara, mesa que quiebra con onda expansiva y brasas, y un botón Jugar que late sobre la mesa rota rodeado de brasas flotantes. Motor, mesa de juego y mecánicas intactos.
+
+---
+Task ID: 18
+Agent: Z.ai Code (main agent)
+Task: «el boton jugar quiero ajustarlo con menos tamaño» — reducir el botón Jugar del menú
+
+Work Log:
+- page.tsx (solo el botón de la intro): padding px-9/py-6 → px-6/py-3.5 (sm:px-14 → sm:px-9), texto «Jugar» text-2xl → text-xl (sm:text-3xl → sm:text-2xl), icono Play h-6 → h-5, subtítulo text-xs → text-[11px] (sm: sm:text-xs), gap 2.5 → 1.5, esquinas rounded-3xl → rounded-2xl. Medido en navegador: 393×87px (antes ≈470×120px).
+- Halo/chispa de table-intro.tsx se adaptan solos (envuelven al botón). Verificado: click en Jugar arranca la partida (7 fichas en mano) ✓, móvil 375×812 correcto con subtítulo en 2 líneas ✓, lint limpio, 0 errores.
+
+Stage Summary:
+- El botón Jugar es ahora notablemente más compacto (menos padding, letra e icono), manteniendo glass/estilo esmeralda, halo pulsante y funcionalidad intacta.

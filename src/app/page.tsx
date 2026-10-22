@@ -585,14 +585,14 @@ export default function DominoPage() {
                 <TableIntro>
                   <button
                     onClick={startGame}
-                    className="flex flex-col items-center gap-2.5 rounded-3xl border-2 border-emerald-300/40 bg-emerald-400/10 px-9 py-6 shadow-inner backdrop-blur-[2px] transition-all hover:border-emerald-300/70 hover:bg-emerald-400/20 active:scale-[0.98] sm:px-14"
+                    className="flex flex-col items-center gap-1.5 rounded-2xl border-2 border-emerald-300/40 bg-emerald-400/10 px-6 py-3.5 shadow-inner backdrop-blur-[2px] transition-all hover:border-emerald-300/70 hover:bg-emerald-400/20 active:scale-[0.98] sm:px-9"
                     aria-label="Jugar una partida de dominó"
                   >
-                    <span className="flex items-center gap-2.5 text-2xl font-black tracking-wide text-emerald-100 sm:text-3xl">
-                      <Play className="h-6 w-6 fill-current sm:h-7 sm:w-7" aria-hidden />
+                    <span className="flex items-center gap-2 text-xl font-black tracking-wide text-emerald-100 sm:text-2xl">
+                      <Play className="h-5 w-5 fill-current sm:h-5 sm:w-5" aria-hidden />
                       Jugar
                     </span>
-                    <span className="text-xs font-semibold text-emerald-200/70 sm:text-sm">
+                    <span className="text-[11px] font-semibold text-emerald-200/70 sm:text-xs">
                       4 jugadores · el doble más alto abre la partida
                     </span>
                   </button>
