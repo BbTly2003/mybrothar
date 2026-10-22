@@ -1,6 +1,6 @@
 // Efectos de sonido sintetizados con WebAudio (sin assets externos).
 
-export type SfxName = 'click' | 'deal' | 'pass' | 'win' | 'lose' | 'coin'
+export type SfxName = 'click' | 'deal' | 'pass' | 'win' | 'lose' | 'coin' | 'thud' | 'thunder'
 
 let ctx: AudioContext | null = null
 let muted = false
@@ -97,6 +97,15 @@ export function playSfx(name: SfxName) {
     case 'lose':
       tone({ freq: 330, duration: 0.2, type: 'sawtooth', gain: 0.06, slideTo: 250 })
       tone({ freq: 250, duration: 0.35, type: 'sawtooth', gain: 0.06, delay: 0.22, slideTo: 160 })
+      break
+    case 'thud': // ficha cayendo a la mesa (lluvia de fichas de la intro)
+      tone({ freq: 120 + Math.random() * 60, duration: 0.07, type: 'triangle', gain: 0.05, slideTo: 62 })
+      break
+    case 'thunder': // rayo de la intro: chasquido + retumbo grave
+      tone({ freq: 1100, duration: 0.16, type: 'square', gain: 0.07, slideTo: 150 })
+      tone({ freq: 120, duration: 1.5, type: 'sawtooth', gain: 0.09, slideTo: 42 })
+      tone({ freq: 58, duration: 2.4, type: 'sine', gain: 0.14, slideTo: 30, delay: 0.05 })
+      tone({ freq: 90, duration: 1.8, type: 'sawtooth', gain: 0.06, slideTo: 36, delay: 0.35 })
       break
   }
 }

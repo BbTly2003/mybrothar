@@ -314,3 +314,22 @@ Work Log:
 
 Stage Summary:
 - El menú ahora abre con una cinemática: llueven las 28 fichas sobre la mesa, un rayo parte el fieltro en dos con fogonazo y sacudida, y sobre la mesa quebrada aparece JUGAR (saltable con un toque, ~3s de duración). Sin cambios en el motor ni en ninguna otra pantalla.
+
+---
+Task ID: 17
+Agent: Z.ai Code (main agent)
+Task: «los efectos full 4k con animaciones» — elevar la intro del menú (Task 16) a cinemática de calidad máxima
+
+Work Log:
+- sfx.ts: nuevos sonidos sintetizados (WebAudio, sin assets) — «thud» (golpe sordo de cada ficha al aterrizar, frecuencia aleatoria 120-180Hz) y «thunder» (chasquido square 1100→150Hz + triple retumbo sawtooth/sine 120→30Hz de hasta 2.4s). Respetan el mute existente; el autoplay sin gesto simplemente no suena (sin errores).
+- table-intro.tsx reescrito en capas de cine (todas SVG/CSS vectoriales, nítidas en 4K):
+  * ATMÓSFERA: oscuridad de tormenta que entra a los 1.15s (opacidad 0.46) + viñeta radial de cine; tras el rayo quedan restos de penumbra (0.12-0.14).
+  * FASE 1 «throwing»: las 28 fichas AHORA CAEN DEL CIELO (entradas desde arriba de la pantalla, y = -(alto+160..440px)) con TUMBO 3D real (rotateX ±260-660°, rotateY hasta 170° con perspective 1100px en la capa), deriva horizontal, rebote al aterrizar (keyframes y: [fy, 0, -12, 0] con easeIn/Out/In), SOMBRA DE CONTACTO que crece bajo cada ficha justo al tocar suelo y NUBE DE POLVO que se expande y muere.
+  * FASE 2 «bolt» (1.9s): rayo ramificado MULTICAPA — glow exterior 13px con feGaussianBlur, cuerpo 5.5px y núcleo blanco 2.2px (pathLength crece en 130ms), 4 ramas eléctricas secundarias, HALO radial en el impacto que se expande, flicker de 7 pulsos, fogonazo de DOBLE PULSO a pantalla completa y SACUDIDA DE CÁMARA (x/y + scale 1.03 sobre toda la escena con perspective).
+  * FASE 3 «crack» (2.15s): ONDA EXPANSIVA (anillo blanco elíptico que escala 0.25→3.6 y muere, transformBox view-box), quemadura central oscura, grieta de 8 brazos + 6 ramillas (pathLength) + BRASAS incandescentes (#ff9d3d/#ffc36e con drop-shadow) que se enfrían en 7 pulsos, 18 esquirlas con GRAVEDAD (arco y: subir y caer, easeOut→easeIn) y 6 nubes de polvo direccionales.
+  * FASE 4 «ready» (3.2s): 14 BRASAS FLOTANTES ambientales (ámbar/marfil, 2-4px, glow, bucle infinito con deriva), la grieta sigue LATEINDO en ámbar (bucle 2.6s), el botón Jugar entra con spring + HALO esmeralda pulsante detrás + chispa eléctrica de entrada (anillo que se desvanece).
+- Extras conservados/mejorados: skip con un toque (verificado: click en «throwing» → ready + botón al instante), prefers-reduced-motion (ready directo y CERO decoración animada), SSR seguro, aria-hidden en capas, limpieza de todos los timers (28 thuds + 4 fases + storm).
+- Verificación E2E (agent-browser 1280×800): traza temporal exacta throwing(0s)→bolt(1.9s)→crack(2.15s)→ready(3.2s); capturas de caída 3D (fichas de canto girando), pre-tormenta oscura, fogonazo lavando la escena, impacto con onda expansiva/brasas/esquirlas y ready con botón+grieta+brasas; skip ✓; click en Jugar → partida real arranca (7 fichas en mano, bots en bitácora) ✓; móvil 375×812 con xs y grieta visible ✓; 0 errores de consola/página; lint limpio; dev.log sin errores.
+
+Stage Summary:
+- La intro del menú es ahora una cinemática 4K completa: tormenta que oscurece, lluvia 3D de las 28 fichas con sombras y polvo, rayo multicapa con trueno y sacudida de cámara, mesa que quiebra con onda expansiva y brasas, y un botón Jugar que late sobre la mesa rota rodeado de brasas flotantes. Motor, mesa de juego y mecánicas intactos.
