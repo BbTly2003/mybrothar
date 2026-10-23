@@ -494,3 +494,23 @@ Stage Summary:
 - WORKFLOW OPERATIVO: cada push a main genera la app portable automáticamente
 - Descarga permanente: https://github.com/BbTly2003/mybrothar/releases/latest
 - ZIP portable Linux/Mac/Windows (start.sh / start.bat, puerto configurable con PORT)
+
+---
+Task ID: 24
+Agent: main
+Task: Descargar la app para probarla en el teléfono (PWA + QR WiFi)
+
+Work Log:
+- bun add qrcode + @types/qrcode; icono generado con z-ai image (ficha de dominó morada) y redimensionado con ffmpeg (512/192/180/maskable)
+- public/manifest.json (standalone, icons, theme #171214) + public/sw.js (network-first, nunca cachea /api/) + SwRegister (solo producción)
+- layout.tsx: metadata PWA (manifest, appleWebApp, icons locales, viewport themeColor + viewportFit cover)
+- API /api/lan-info: QR del origen actual + IPs LAN privadas del servidor (192.168/10/172.16-31) con QR cada una
+- PhonePlayPanel: botón fijo morado "Probar en el móvil" + panel con QR origen, sección WiFi y guía de instalación; oculta sección WiFi si no hay IPs privadas
+- start.sh/.bat mencionan el botón del QR; page.tsx integra PhonePlayPanel + SwRegister
+- Verificado con agent-browser: panel 340px con QR cargado, móvil 375x812 OK, partida rápida arranca (7 fichas), 0 errores consola, manifest/sw/iconos HTTP 200
+- Push 010c8b0 → Run #2 SUCCESS (~50s) → Release latest actualizada (106MB)
+
+Stage Summary:
+- LA APP ES INSTALABLE EN EL TELÉFONO (Añadir a pantalla de inicio) con icono propio
+- QR en el menú: origen actual + URLs WiFi del PC (cuando corre el ZIP en la red local)
+- En el sandbox la sección WiFi se oculta correctamente (IP no privada); en el PC del usuario (192.168.x) aparece
