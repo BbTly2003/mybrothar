@@ -441,3 +441,21 @@ Stage Summary:
 - MyBrothar con dos modos: Partida Rápida (bots, intacta) y Multiplayer WiFi (salas de 4, servidor autoritativo, vistas rotadas por asiento).
 - Archivos: mini-services/room-service/{package.json,index.ts} (nuevo), room-lobby.tsx (nuevo), page.tsx (lobby+multi), types/reducer/engine (names), seat.tsx/result-dialog.tsx (props), layout.tsx, table-intro.tsx (pb).
 - room-service corre en :3003 (log en room-service.log); el cliente siempre usa io('/?XTransformPort=3003').
+
+---
+Task ID: 22
+Agent: main
+Task: Crear repositorio GitHub (mybrothar) y commitear el proyecto
+
+Work Log:
+- Verificado git existente: 22 commits automáticos en main, working tree limpio
+- Seguridad: desversionados .env, db/custom.db y tool-results/ (7 archivos); .gitignore actualizado
+- Escaneado historial completo: sin secretos (solo DATABASE_URL local en .env antiguo)
+- Commit 86fd39f: limpieza de seguridad
+- Token GitHub validado (usuario BbTly2003) pero 403 al crear repo: fine-grained PAT sin permiso Administration:write
+- Remote origin configurado: https://github.com/BbTly2003/mybrothar.git (push pendiente de token válido)
+
+Stage Summary:
+- Repo local 100% listo para push (23 commits, 112 archivos)
+- BLOQUEO EXTERNO: el usuario debe regenerar el token con Administration:Read+write y Contents:Read+write
+- Push pendiente: git push -u origin main
