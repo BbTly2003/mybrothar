@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
@@ -18,9 +18,25 @@ export const metadata: Metadata = {
   description:
     "MyBrothar: dominó clásico para 4 jugadores. Partida rápida contra bots o multijugador local por WiFi creando y uniéndote a salas.",
   keywords: ["dominó", "domino", "mybrothar", "juego", "mesa", "multijugador", "wifi", "clásico"],
-  icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+  applicationName: "MyBrothar",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "MyBrothar",
+    statusBarStyle: "black-translucent",
   },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#171214",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

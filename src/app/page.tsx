@@ -20,9 +20,11 @@ import {
 import { BoardChain } from '@/components/domino/board-chain'
 import { DominoTile } from '@/components/domino/domino-tile'
 import { GameLog } from '@/components/domino/game-log'
+import { PhonePlayPanel } from '@/components/domino/phone-play-panel'
 import { ResultDialog } from '@/components/domino/result-dialog'
 import { RoomLobby, type LobbyState } from '@/components/domino/room-lobby'
 import { Seat } from '@/components/domino/seat'
+import { SwRegister } from '@/components/domino/sw-register'
 import { TableIntro } from '@/components/domino/table-intro'
 
 import { chooseBotMove, createGame, getEnds, sidesFor } from '@/lib/game/engine'
@@ -909,6 +911,10 @@ export default function DominoPage() {
           🀄 MyBrothar · Dominó clásico para 4 jugadores
         </p>
       </footer>
+
+      {/* Panel para probar el juego en el teléfono (QR) + registro PWA */}
+      <PhonePlayPanel />
+      <SwRegister />
 
       {/* Ficha fantasma que sigue al puntero mientras se arrastra hacia la mesa */}
       {drag?.active && (

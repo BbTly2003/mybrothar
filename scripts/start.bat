@@ -11,6 +11,8 @@ echo  ====================================
 echo   MYBROTHAR - domino para 4 jugadores
 echo  ====================================
 echo   Abre http://localhost:%PORT% en tu navegador
+echo   Para jugar en el telefono: pulsa "Probar en el movil"
+echo   dentro del juego y escanea el QR (mismo WiFi)
 echo   (cierra esta ventana para salir)
 echo.
 node server.js
