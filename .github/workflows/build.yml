@@ -1,0 +1,69 @@
+name: Build MyBrothar
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Compilar y empaquetar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Instalar Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Instalar dependencias
+        run: bun install --frozen-lockfile
+
+      - name: Preparar base de datos
+        run: |
+          bunx prisma generate
+          DATABASE_URL="file:$GITHUB_WORKSPACE/db/custom.db" bunx prisma db push --skip-generate
+
+      - name: Compilar Next.js (standalone)
+        run: DATABASE_URL="file:$GITHUB_WORKSPACE/db/custom.db" bun run build
+
+      - name: Empaquetar aplicación portable
+        run: |
+          PKG=mybrothar
+          mkdir -p "$PKG/db"
+          cp -a .next/standalone/. "$PKG/"
+          # Next standalone no traza todos los engines de Prisma: copiar el cliente completo
+          mkdir -p "$PKG/node_modules/.prisma"
+          cp -a node_modules/.prisma/client "$PKG/node_modules/.prisma/"
+          cp db/custom.db "$PKG/db/"
+          cp scripts/start.sh scripts/start.bat "$PKG/"
+          cp LEEME.txt "$PKG/"
+          chmod +x "$PKG/start.sh" "$PKG/server.js"
+          zip -rq mybrothar.zip "$PKG"
+          echo "Tamaño del paquete: $(du -sh mybrothar.zip | cut -f1)"
+
+      - name: Subir artefacto (pestaña Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mybrothar
+          path: mybrothar.zip
+          retention-days: 30
+
+      - name: Publicar Release (enlace permanente)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create latest mybrothar.zip \
+            --title "MyBrothar — última versión" \
+            --notes "🎲 Descarga **mybrothar.zip**, descomprímelo y ejecuta:
+          - **Linux/Mac:** \`./start.sh\`
+          - **Windows:** doble clic en \`start.bat\`
+
+          Luego abre http://localhost:3000 en tu navegador. Requiere Node.js." \
+            --latest \
+          || gh release upload latest mybrothar.zip --clobber

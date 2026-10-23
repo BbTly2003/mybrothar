@@ -5,7 +5,9 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Engines para que el build standalone corra en Linux, Mac y Windows
+  binaryTargets = ["native", "debian-openssl-3.0.x", "darwin", "darwin-arm64", "windows"]
 }
 
 datasource db {

@@ -1,0 +1,40 @@
+============================================================
+  🎲  MYBROTHAR — Juego de dominó para 4 jugadores
+      (tú + 3 bots: Lola, Max y Kira)
+============================================================
+
+CÓMO JUGAR
+----------
+Linux / Mac:
+   1. Abre una terminal dentro de esta carpeta
+   2. Ejecuta:  ./start.sh
+
+Windows:
+   1. Doble clic en:  start.bat
+
+Después abre en tu navegador:   http://localhost:3000
+
+REQUISITOS
+----------
+- Tener Node.js instalado (descárgalo en https://nodejs.org)
+- El puerto 3000 libre (o cámbialo, ver abajo)
+
+CAMBIAR EL PUERTO
+-----------------
+Linux / Mac:   PORT=8080 ./start.sh
+Windows:       set PORT=8080  y luego  start.bat
+
+TU PROGRESO
+-----------
+La carpeta db/custom.db guarda tus fichas (tokens) y el
+historial de partidas. No la borres si quieres conservar
+tu progreso.
+
+SOLUCIÓN DE PROBLEMAS
+---------------------
+- " Puerto en uso ": cambia el puerto (ver arriba).
+- " node no se reconoce ": instala Node.js y reinicia.
+- Si el juego no carga, espera unos segundos y recarga:
+  el primer arranque compila un poco más lento.
+
+¡A jugar! 🎲
