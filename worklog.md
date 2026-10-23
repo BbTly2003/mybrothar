@@ -477,3 +477,20 @@ Stage Summary:
 - REPO LIVE: https://github.com/BbTly2003/mybrothar (público, rama main)
 - Futuros pushes funcionan sin token nuevo (credential store local)
 - Pendiente recordar al usuario revocar/rotar el token (compartido en chat en texto plano)
+
+---
+Task ID: 23
+Agent: main
+Task: Workflow GitHub Actions para "sacar la aplicación" (build portable descargable)
+
+Work Log:
+- prisma/schema.prisma: binaryTargets añadidos (native, debian-3.0, darwin, darwin-arm64, windows) — DB intacta
+- Creados: .github/workflows/build.yml, scripts/start.sh, scripts/start.bat, LEEME.txt, README.md
+- Ensayo local completo en /tmp/mybrothar-build: bun install ✓, prisma ✓, build standalone ✓ (10.4s), ZIP 102MB con 4 engines ✓, servidor standalone HTTP 200 + API profile {tokens:1000} ✓
+- Commit 9ad329d push → workflow Run #1 en GitHub: SUCCESS en ~50s
+- Verificado: artifact mybrothar (105MB) + Release latest con mybrothar.zip (106MB), descarga pública HTTP 200
+
+Stage Summary:
+- WORKFLOW OPERATIVO: cada push a main genera la app portable automáticamente
+- Descarga permanente: https://github.com/BbTly2003/mybrothar/releases/latest
+- ZIP portable Linux/Mac/Windows (start.sh / start.bat, puerto configurable con PORT)
