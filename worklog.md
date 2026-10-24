@@ -514,3 +514,24 @@ Stage Summary:
 - LA APP ES INSTALABLE EN EL TELÉFONO (Añadir a pantalla de inicio) con icono propio
 - QR en el menú: origen actual + URLs WiFi del PC (cuando corre el ZIP en la red local)
 - En el sandbox la sección WiFi se oculta correctamente (IP no privada); en el PC del usuario (192.168.x) aparece
+
+---
+Task ID: 25
+Agent: main
+Task: Modo parejas (equipos) en multiplayer hasta N puntos
+
+Work Log:
+- Reglas confirmadas en web (Ludoteka/gamecolony): ganador suma pips de manos rivales; tranca gana el de menos pips (empate → equipo que abrió); pareja ganadora abre la siguiente mano alternando miembros; solo la 1ª mano la abre el doble más alto
+- engine.ts: createGame(names, {starter?}) para manos 2+ (requiredFirstTileId null)
+- types.ts: RoomConfig (mode/partnerSeat/targetPoints), MatchInfo rotado por receptor, POINT_TARGETS
+- room-service/index.ts: evento lobby:config (solo host), Match (equipos/scores/teamNextOpener/openerSeat), finishHand (domino/tranca con desempate), scheduleNextHand (8s), matchInfoFor rotado (teams[0] = equipo del receptor), leaveRoom ajusta partnerSeat, rematch resetea partido
+- room-lobby.tsx: selector modo (Parejas/Individual), compañero (radios con nombres), meta 50/100/150/200, resumen para invitados, badge Compañero
+- team-result-dialog.tsx: fin de mano (+X, marcador, barras de progreso, cuenta atrás) y fin de partido (Nuevo partido solo host)
+- page.tsx: MultiMeta.match, franja marcador en vivo, insignia 🤝 en asiento del compañero, TeamsResultDialog en modo parejas
+- E2E 4 clientes socket (gateway :81): puntuación verificada matemáticamente (domino + tranca con desempate), rotación de equipos por asiento, apertura por pareja ganadora, fin de partido en meta, revancha
+- Navegador real (gateway): lobby config, marcador en vivo, cuenta atrás 6s→1s, diálogo 🏆 ¡Ganasteis el partido! 64-0, Nuevo partido OK
+- Push 1720f34 → Run #3 SUCCESS → Release latest actualizada
+
+Stage Summary:
+- MODO PAREJAS COMPLETO y verificado: compañero a elección, meta configurable, puntos de fichas fuera de mesa, tranca, rotación de apertura, fin de partido y revancha
+- ZIP portable actualizado en Releases
