@@ -2,18 +2,46 @@
 // Autoritativo: guarda el estado real de cada sala, valida cada jugada con el
 // MISMO reducer que la mesa rápida (import compartido) y envía a cada jugador
 // una vista rotada donde él siempre es el asiento 0 (abajo).
+//
+// Modo PAREJAS (equipos): el anfitrión elige compañero y puntos objetivo.
+//  · Cada mano: el equipo ganador suma los puntos (pips) que quedaron en las
+//    manos de los rivales — las fichas que quedaron fuera de la mesa.
+//  · Tranca (nadie puede jugar): gana el equipo con MENOS puntos en mano y
+//    suma los de los rivales; empate → gana el equipo que abrió la mano.
+//  · La pareja ganadora abre la siguiente mano (alternando sus dos miembros);
+//    solo la primera mano la abre el doble más alto.
+//  · Gana el partido el primer equipo que alcance los puntos objetivo.
 import { createServer } from 'http'
 import { Server } from 'socket.io'
-import type { GameState, Side } from '../../src/lib/game/types'
-import { createGame, sidesFor } from '../../src/lib/game/engine'
+import type { GameState, RoomConfig, Side } from '../../src/lib/game/types'
+import { createGame, pipSum, sidesFor } from '../../src/lib/game/engine'
 import { gameReducer } from '../../src/lib/game/reducer'
 
 const PORT = 3003
+/** Pausa entre manos para ver el resumen de puntos (ms) */
+const HAND_GAP_MS = 8000
+const POINT_TARGETS: readonly number[] = [50, 100, 150, 200]
 
 interface RoomPlayer {
   socketId: string
   name: string
   seat: number
+}
+
+interface Match {
+  mode: 'teams'
+  targetPoints: number
+  /** Asientos absolutos: teams[0] = equipo del anfitrión, teams[1] = rivales */
+  teams: [number[], number[]]
+  scores: [number, number]
+  /** Próximo abridor por equipo (alterna entre los dos miembros) */
+  teamNextOpener: [number, number]
+  /** Quién abrió la mano actual (desempate en tranca) */
+  openerSeat: number
+  handNo: number
+  over: boolean
+  lastHand: { winnerTeam: 0 | 1; points: number; reason: 'domino' | 'blocked' } | null
+  nextHandAt: number | null
 }
 
 interface Room {
@@ -22,6 +50,9 @@ interface Room {
   players: RoomPlayer[]
   state: GameState | null
   watchTimer: ReturnType<typeof setTimeout> | null
+  config: RoomConfig
+  match: Match | null
+  nextHandTimer: ReturnType<typeof setTimeout> | null
 }
 
 /** socketId → sala y asiento de cada cliente conectado */
@@ -41,6 +72,104 @@ function makeCode(): string {
 function cleanName(raw: unknown, fallback: string): string {
   const name = typeof raw === 'string' ? raw.trim().slice(0, 14) : ''
   return name.length > 0 ? name : fallback
+}
+
+/** Equipos absolutos según la config actual (para el lobby) */
+function configTeams(config: RoomConfig): [number[], number[]] | null {
+  if (config.mode !== 'teams' || config.partnerSeat === null) return null
+  const rest = [1, 2, 3].filter((s) => s !== config.partnerSeat)
+  return [
+    [0, config.partnerSeat],
+    rest,
+  ]
+}
+
+/** Equipo (0|1) al que pertenece un asiento absoluto */
+function teamOfSeat(match: Match, seat: number): 0 | 1 {
+  return match.teams[0].includes(seat) ? 0 : 1
+}
+
+/** Calcula el resultado de la mano terminada y actualiza el marcador.
+ *  Reglas: dominó → el equipo del ganador suma los pips de las manos rivales.
+ *  Tranca → gana el equipo con menos pips en mano y suma los del rival;
+ *  empate → gana el equipo que abrió la mano. */
+function finishHand(room: Room, s: GameState) {
+  const match = room.match
+  if (!match) return
+  let winnerTeam: 0 | 1
+  let points: number
+  let reason: 'domino' | 'blocked'
+
+  if (s.outcome && s.outcome.winnerSeat !== null && !s.outcome.pipSums) {
+    // dominó: alguien se quedó sin fichas
+    reason = 'domino'
+    winnerTeam = teamOfSeat(match, s.outcome.winnerSeat)
+    const losers = winnerTeam === 0 ? match.teams[1] : match.teams[0]
+    points = losers.reduce((sum, seat) => sum + pipSum(s.hands[seat]), 0)
+  } else {
+    // tranca: suma por equipos
+    reason = 'blocked'
+    const sum0 = match.teams[0].reduce((sum, seat) => sum + pipSum(s.hands[seat]), 0)
+    const sum1 = match.teams[1].reduce((sum, seat) => sum + pipSum(s.hands[seat]), 0)
+    if (sum0 < sum1) {
+      winnerTeam = 0
+      points = sum1
+    } else if (sum1 < sum0) {
+      winnerTeam = 1
+      points = sum0
+    } else {
+      winnerTeam = teamOfSeat(match, match.openerSeat)
+      points = winnerTeam === 0 ? sum1 : sum0
+    }
+  }
+
+  match.scores[winnerTeam] += points
+  match.lastHand = { winnerTeam, points, reason }
+  match.over = match.scores[winnerTeam] >= match.targetPoints
+  console.log(
+    `[room] ${room.code} mano ${match.handNo}: +${points} al equipo ${winnerTeam + 1} (${reason}) · marcador ${match.scores[0]}-${match.scores[1]}${match.over ? ' · PARTIDO TERMINADO' : ''}`,
+  )
+}
+
+/** matchInfo rotado para el asiento receptor: teams[0] SIEMPRE es su equipo */
+function matchInfoFor(room: Room, seat: number, s: GameState) {
+  const match = room.match
+  if (!match || match.mode !== 'teams') return null
+  const rot = (n: number) => (n - seat + 4) % 4
+
+  const rotTeams: [number[], number[]] = [
+    match.teams[0].map(rot),
+    match.teams[1].map(rot),
+  ]
+  const myIdx: 0 | 1 = rotTeams[0].includes(0) ? 0 : 1
+  const teams: [number[], number[]] = myIdx === 0 ? rotTeams : [rotTeams[1], rotTeams[0]]
+  const scores: [number, number] =
+    myIdx === 0 ? [match.scores[0], match.scores[1]] : [match.scores[1], match.scores[0]]
+  const handPoints = match.lastHand
+    ? {
+        winnerTeam: (myIdx === 0
+          ? match.lastHand.winnerTeam
+          : match.lastHand.winnerTeam === 0
+            ? 1
+            : 0) as 0 | 1,
+        points: match.lastHand.points,
+        reason: match.lastHand.reason,
+      }
+    : null
+  const nextHandIn =
+    s.phase === 'finished' && !match.over && match.nextHandAt
+      ? Math.max(0, match.nextHandAt - Date.now())
+      : 0
+
+  return {
+    mode: 'teams' as const,
+    targetPoints: match.targetPoints,
+    teams,
+    scores,
+    handPoints,
+    matchOver: match.over,
+    nextHandIn,
+  }
 }
 
 /** Vista personalizada: el receptor SIEMPRE es el asiento 0 (abajo) y las demás
@@ -105,6 +234,7 @@ function buildView(room: Room, seat: number) {
     seatNames: names,
     code: room.code,
     isHost: room.hostSeat === seat,
+    match: matchInfoFor(room, seat, s),
   }
 }
 
@@ -116,6 +246,8 @@ function lobbyPayload(room: Room, seat: number) {
     players: room.players.map((p) => p.name),
     hostSeat: room.hostSeat,
     phase: room.state ? ('playing' as const) : ('lobby' as const),
+    config: room.config,
+    teams: configTeams(room.config),
   }
 }
 
@@ -148,10 +280,53 @@ function applyServerAction(
         tileId: action.tileId ?? -1,
         side: action.side ?? 'right',
       })
-  if (next === before) return // jugada inválida: el estado real no cambia
+  if (!next || next === before) return // jugada inválida: el estado real no cambia
   room.state = next
+
+  if (next.phase === 'finished' && room.match?.mode === 'teams' && !room.match.over) {
+    // modo parejas: puntúa la mano y prepara la siguiente
+    finishHand(room, next)
+    if (!room.match.over) {
+      room.match.nextHandAt = Date.now() + HAND_GAP_MS
+      broadcastViews(room)
+      scheduleNextHand(room)
+      return
+    }
+    broadcastViews(room)
+    return
+  }
+
   broadcastViews(room)
   scheduleTurnWatch(room)
+}
+
+/** Arranca la siguiente mano: abre la pareja ganadora (miembro alternado) */
+function startNextHand(room: Room) {
+  const match = room.match
+  if (!match || match.over || !room.state) return
+  if (room.nextHandTimer) {
+    clearTimeout(room.nextHandTimer)
+    room.nextHandTimer = null
+  }
+  if (room.state.phase !== 'finished') return
+
+  const w = match.lastHand?.winnerTeam ?? 0
+  const opener = match.teamNextOpener[w]
+  match.teamNextOpener[w] = match.teams[w].find((s) => s !== opener) ?? opener
+  match.openerSeat = opener
+  match.handNo += 1
+  match.nextHandAt = null
+
+  room.state = createGame(room.players.map((p) => p.name), { starter: opener })
+  broadcastViews(room)
+  scheduleTurnWatch(room)
+  console.log(`[room] ${room.code} nueva mano ${match.handNo} · abre ${room.state.names?.[opener]}`)
+}
+
+/** Pausa entre manos: muestra el resumen de puntos y reparte de nuevo */
+function scheduleNextHand(room: Room) {
+  if (room.nextHandTimer) clearTimeout(room.nextHandTimer)
+  room.nextHandTimer = setTimeout(() => startNextHand(room), HAND_GAP_MS)
 }
 
 /** Red de seguridad: si al que le toca no tiene jugada y pasan 8s, pasa solo */
@@ -174,6 +349,7 @@ function scheduleTurnWatch(room: Room) {
 
 function closeRoom(room: Room, reason: string) {
   if (room.watchTimer) clearTimeout(room.watchTimer)
+  if (room.nextHandTimer) clearTimeout(room.nextHandTimer)
   for (const p of room.players) {
     seatOf.delete(p.socketId)
     io.to(p.socketId).emit('room:closed', { reason })
@@ -189,6 +365,7 @@ function leaveRoom(socketId: string) {
   if (!room) return
 
   const player = room.players.find((p) => p.socketId === socketId)
+  const leaverSeat = player?.seat ?? -1
   room.players = room.players.filter((p) => p.socketId !== socketId)
 
   if (room.players.length === 0) {
@@ -202,7 +379,13 @@ function leaveRoom(socketId: string) {
     return
   }
 
-  // en sala: compacta asientos y reasigna el anfitrión si hizo falta
+  // en sala: ajusta el compañero elegido si los asientos se mueven
+  if (room.config.partnerSeat !== null) {
+    if (room.config.partnerSeat === leaverSeat) room.config.partnerSeat = null
+    else if (room.config.partnerSeat > leaverSeat) room.config.partnerSeat -= 1
+  }
+
+  // compacta asientos y reasigna el anfitrión si hizo falta
   room.players.sort((a, b) => a.seat - b.seat)
   room.players.forEach((p, i) => {
     p.seat = i
@@ -232,6 +415,9 @@ io.on('connection', (socket) => {
       players: [{ socketId: socket.id, name: cleanName(data?.name, 'Jugador 1'), seat: 0 }],
       state: null,
       watchTimer: null,
+      config: { mode: 'teams', partnerSeat: 2, targetPoints: 100 },
+      match: null,
+      nextHandTimer: null,
     }
     rooms.set(room.code, room)
     seatOf.set(socket.id, { code: room.code, seat: 0 })
@@ -264,6 +450,44 @@ io.on('connection', (socket) => {
     console.log(`[room] ${room.players[seat].name} entró a ${room.code} (${room.players.length}/4)`)
   })
 
+  // configuración del anfitrión: modo, compañero y puntos objetivo
+  socket.on(
+    'lobby:config',
+    (
+      data: { mode?: string; partnerSeat?: number | null; targetPoints?: number },
+      ack?: (r: unknown) => void,
+    ) => {
+      const info = seatOf.get(socket.id)
+      const room = info ? rooms.get(info.code) : null
+      if (!room || !info) {
+        ack?.({ ok: false, error: 'No estás en ninguna sala.' })
+        return
+      }
+      if (room.hostSeat !== info.seat) {
+        ack?.({ ok: false, error: 'Solo el anfitrión puede configurar la partida.' })
+        return
+      }
+      if (room.state) {
+        ack?.({ ok: false, error: 'La partida ya empezó.' })
+        return
+      }
+      if (data?.mode === 'classic' || data?.mode === 'teams') room.config.mode = data.mode
+      if (typeof data?.targetPoints === 'number' && POINT_TARGETS.includes(data.targetPoints)) {
+        room.config.targetPoints = data.targetPoints
+      }
+      if (data?.partnerSeat === null) {
+        room.config.partnerSeat = null
+      } else if (typeof data?.partnerSeat === 'number') {
+        const ps = data.partnerSeat
+        if (ps > 0 && ps < 4 && room.players.some((p) => p.seat === ps)) {
+          room.config.partnerSeat = ps
+        }
+      }
+      ack?.({ ok: true })
+      broadcastLobby(room)
+    },
+  )
+
   socket.on('lobby:leave', () => leaveRoom(socket.id))
 
   socket.on('lobby:start', (ack?: (r: unknown) => void) => {
@@ -282,11 +506,39 @@ io.on('connection', (socket) => {
       return
     }
     const names = room.players.map((p) => p.name)
-    room.state = createGame(names)
+
+    if (room.config.mode === 'teams') {
+      const partner = room.config.partnerSeat
+      if (partner === null || !room.players.some((p) => p.seat === partner)) {
+        ack?.({ ok: false, error: 'Elige a tu compañero antes de empezar.' })
+        return
+      }
+      const rivals = [1, 2, 3].filter((s) => s !== partner)
+      room.match = {
+        mode: 'teams',
+        targetPoints: room.config.targetPoints,
+        teams: [
+          [0, partner],
+          rivals,
+        ],
+        scores: [0, 0],
+        teamNextOpener: [0, rivals[0]],
+        openerSeat: -1,
+        handNo: 1,
+        over: false,
+        lastHand: null,
+        nextHandAt: null,
+      }
+      room.state = createGame(names)
+    } else {
+      room.match = null
+      room.state = createGame(names)
+    }
+
     ack?.({ ok: true })
     broadcastViews(room)
     scheduleTurnWatch(room)
-    console.log(`[room] partida iniciada en ${room.code}`)
+    console.log(`[room] partida iniciada en ${room.code} (modo ${room.config.mode})`)
   })
 
   socket.on(
@@ -294,7 +546,7 @@ io.on('connection', (socket) => {
     (data: { kind?: 'play' | 'pass'; tileId?: number; side?: Side }) => {
       const info = seatOf.get(socket.id)
       const room = info ? rooms.get(info.code) : null
-      if (!room || !room.state) return
+      if (!info || !room || !room.state) return
       if (room.state.phase !== 'playing') return
       if (room.state.turn !== info.seat) return // no es tu turno: el estado manda
       if (data?.kind === 'pass') {
@@ -324,7 +576,25 @@ io.on('connection', (socket) => {
       ack?.({ ok: false, error: 'La partida sigue en juego.' })
       return
     }
-    room.state = createGame(room.players.map((p) => p.name))
+    const names = room.players.map((p) => p.name)
+    if (room.match?.mode === 'teams') {
+      // nuevo partido: marcador a cero y primera mano con doble más alto
+      const match = room.match
+      match.scores = [0, 0]
+      match.over = false
+      match.lastHand = null
+      match.nextHandAt = null
+      match.handNo = 1
+      match.openerSeat = -1
+      match.teamNextOpener = [match.teams[0][0], match.teams[1][0]]
+      if (room.nextHandTimer) {
+        clearTimeout(room.nextHandTimer)
+        room.nextHandTimer = null
+      }
+      room.state = createGame(names)
+    } else {
+      room.state = createGame(names)
+    }
     ack?.({ ok: true })
     broadcastViews(room)
     scheduleTurnWatch(room)

@@ -90,11 +90,43 @@ function findHighestDouble(hands: Tile[][]): { seat: number; tile: Tile } | null
   return null
 }
 
+/** Opciones de creación: en el modo por parejas, las manos 2+ las abre
+ *  un jugador concreto (miembro de la pareja ganadora) con cualquier ficha. */
+export interface CreateGameOptions {
+  /** Asiento que abre la mano; omite la regla del doble más alto. */
+  starter?: number
+}
+
 /** Crea el estado inicial de una partida nueva (usa Math.random: llamar fuera de reducers).
- *  names: nombres reales por asiento (multijugador); si se omite, usa los de la mesa rápida. */
-export function createGame(names?: string[]): GameState {
+ *  names: nombres reales por asiento (multijugador); si se omite, usa los de la mesa rápida.
+ *  opts.starter: asiento que abre con cualquier ficha (manos 2+ del modo parejas). */
+export function createGame(names?: string[], opts?: CreateGameOptions): GameState {
   const hands = dealHands()
   const seatLabel = (seat: number) => names?.[seat] ?? SEAT_NAMES_FALLBACK[seat]
+
+  // Mano 2+ del modo parejas: abre el jugador indicado con la ficha que quiera.
+  if (opts && typeof opts.starter === 'number') {
+    const starter = opts.starter
+    let logSeq = 0
+    const log: GameState['log'] = [
+      { id: logSeq++, text: 'Nueva mano · abre la pareja que ganó la anterior', kind: 'system' },
+      { id: logSeq++, text: `${seatLabel(starter)} abre esta mano con la ficha que elija.`, kind: 'info' },
+    ]
+    return {
+      hands,
+      chain: [],
+      turn: starter,
+      starter,
+      passesInRow: 0,
+      phase: 'playing',
+      outcome: null,
+      requiredFirstTileId: null,
+      lastSide: null,
+      log,
+      logSeq,
+      names,
+    }
+  }
 
   // Regla clásica: comienza quien tenga el doble más alto y juega esa ficha.
   // Como las 28 fichas siempre se reparten, los 7 dobles están en juego y el doble más alto existe.

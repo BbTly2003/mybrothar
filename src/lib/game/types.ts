@@ -85,3 +85,34 @@ export const SEAT_AVATAR_CLASS = [
   'from-amber-300 to-amber-500',
   'from-violet-300 to-violet-500',
 ] as const
+
+/* ─── Modo por parejas (multijugador) ────────────────────────────── */
+
+export const POINT_TARGETS = [50, 100, 150, 200] as const
+export type RoomMode = 'classic' | 'teams'
+
+/** Configuración de la sala elegida por el anfitrión en el lobby. */
+export interface RoomConfig {
+  mode: RoomMode
+  /** Asiento (absoluto de la sala) del compañero del anfitrión; null si aún no eligió. */
+  partnerSeat: number | null
+  /** Puntos a los que se gana el partido (solo modo parejas). */
+  targetPoints: number
+}
+
+/** Estado del partido por parejas que viaja en cada game:view (ya rotado
+ *  por receptor: teams[0] SIEMPRE es el equipo del receptor). */
+export interface MatchInfo {
+  mode: 'teams'
+  targetPoints: number
+  /** [0] = equipo del receptor ([0, compañero]); [1] = rivales. */
+  teams: [number[], number[]]
+  /** scores[0] = equipo del receptor, scores[1] = rivales. */
+  scores: [number, number]
+  /** Resultado de la última mano terminada (visible durante el diálogo). */
+  handPoints: { winnerTeam: 0 | 1; points: number; reason: 'domino' | 'blocked' } | null
+  /** El partido terminó: algún equipo alcanzó el objetivo. */
+  matchOver: boolean
+  /** Milisrestantes para la siguiente mano (solo con mano terminada y partido vivo). */
+  nextHandIn: number
+}

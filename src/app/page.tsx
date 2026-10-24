@@ -26,10 +26,11 @@ import { RoomLobby, type LobbyState } from '@/components/domino/room-lobby'
 import { Seat } from '@/components/domino/seat'
 import { SwRegister } from '@/components/domino/sw-register'
 import { TableIntro } from '@/components/domino/table-intro'
+import { TeamsResultDialog } from '@/components/domino/team-result-dialog'
 
 import { chooseBotMove, createGame, getEnds, sidesFor } from '@/lib/game/engine'
 import { gameReducer } from '@/lib/game/reducer'
-import type { GameState, Side, Tile } from '@/lib/game/types'
+import type { GameState, MatchInfo, RoomConfig, RoomMode, Side, Tile } from '@/lib/game/types'
 import { SEAT_NAMES } from '@/lib/game/types'
 import { getMutedSnapshot, playSfx, setSfxMuted, subscribeMuted } from '@/lib/sfx'
 import { cn } from '@/lib/utils'
@@ -99,6 +100,8 @@ interface MultiMeta {
   seatNames: string[]
   code: string
   isHost: boolean
+  /** modo parejas: marcador, equipos y resultado de la mano (null en individual) */
+  match: MatchInfo | null
 }
 
 // ---------- Drag & drop de fichas hacia la mesa ----------
@@ -263,12 +266,19 @@ export default function DominoPage() {
     socketRef.current = s
     s.on('connect', () => setSocketConnected(true))
     s.on('disconnect', () => setSocketConnected(false))
-    s.on('lobby:state', (p: { code: string; mySeat: number; isHost: boolean; players: string[] }) => {
-      setLobby({ code: p.code, players: p.players, isHost: p.isHost, mySeat: p.mySeat })
+    s.on('lobby:state', (p: { code: string; mySeat: number; isHost: boolean; players: string[]; config?: RoomConfig; teams?: number[][] | null }) => {
+      setLobby({
+        code: p.code,
+        players: p.players,
+        isHost: p.isHost,
+        mySeat: p.mySeat,
+        config: p.config ?? null,
+        teams: p.teams ?? null,
+      })
       setLobbyScreen('room')
     })
-    s.on('game:view', (v: { state: GameState; handCounts: [number, number, number, number]; seatNames: string[]; code: string; isHost: boolean }) => {
-      setMultiView({ handCounts: v.handCounts, seatNames: v.seatNames, code: v.code, isHost: v.isHost })
+    s.on('game:view', (v: { state: GameState; handCounts: [number, number, number, number]; seatNames: string[]; code: string; isHost: boolean; match?: MatchInfo | null }) => {
+      setMultiView({ handCounts: v.handCounts, seatNames: v.seatNames, code: v.code, isHost: v.isHost, match: v.match ?? null })
       setLobby(null)
       setLobbyScreen('closed')
       setLobbyError(null)
@@ -320,6 +330,15 @@ export default function DominoPage() {
       if (!r.ok) toast.error(r.error ?? 'No se pudo dar revancha.')
     })
   }, [])
+
+  const handleConfigRoom = useCallback(
+    (patch: { mode?: RoomMode; partnerSeat?: number | null; targetPoints?: number }) => {
+      socketRef.current?.emit('lobby:config', patch, (r: { ok: boolean; error?: string }) => {
+        if (!r.ok) setLobbyError(r.error ?? 'No se pudo guardar la configuración.')
+      })
+    },
+    [],
+  )
 
   const handleLeaveRoom = useCallback(() => {
     exitMulti()
@@ -435,6 +454,21 @@ export default function DominoPage() {
     }
     return `Turno de ${multiView ? multiView.seatNames[state.turn] : SEAT_NAMES[state.turn]}…`
   }, [state, playableIds.size, multiView])
+
+  // ---------- Modo parejas: compañero y nombres con insignia 🤝 ----------
+  /** asiento (rotado) de mi compañero en modo parejas; null en individual */
+  const partnerSeat = useMemo(() => {
+    const team = multiView?.match?.teams?.[0]
+    return team ? (team.find((s) => s !== 0) ?? null) : null
+  }, [multiView])
+
+  const seatNameAt = useCallback(
+    (i: number) => {
+      if (!multiView) return undefined
+      return i === partnerSeat ? `${multiView.seatNames[i]} 🤝` : multiView.seatNames[i]
+    },
+    [multiView, partnerSeat],
+  )
 
   // ---------- Acciones ----------
   const startGame = useCallback(() => {
@@ -656,6 +690,23 @@ export default function DominoPage() {
               >
                 {statusText}
               </p>
+              {multiView?.match && (
+                <div
+                  className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1.5 text-xs font-bold shadow"
+                  aria-label="Marcador del partido por parejas"
+                >
+                  <span className="text-emerald-300">
+                    🤝 Tú &amp; {partnerSeat !== null ? multiView.seatNames[partnerSeat] : '—'}
+                  </span>
+                  <span className="font-black text-emerald-300">{multiView.match.scores[0]}</span>
+                  <span className="text-zinc-500">—</span>
+                  <span className="font-black text-rose-300">{multiView.match.scores[1]}</span>
+                  <span className="max-w-[34vw] truncate text-rose-300">
+                    {multiView.match.teams[1].map((s) => multiView.seatNames[s]).join(' & ')}
+                  </span>
+                  <span className="text-zinc-500">· a {multiView.match.targetPoints} pts</span>
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <span
                   className="flex items-center gap-1.5 rounded-full border border-white/10 bg-zinc-900/85 px-3 py-1.5 text-xs font-semibold text-zinc-400 shadow"
@@ -686,20 +737,20 @@ export default function DominoPage() {
                 seat={1}
                 count={botCounts[0]}
                 active={activeSeat === 1}
-                name={multiView ? multiView.seatNames[1] : undefined}
+                name={seatNameAt(1)}
                 className="md:hidden"
               />
               <Seat
                 seat={2}
                 count={botCounts[1]}
                 active={activeSeat === 2}
-                name={multiView ? multiView.seatNames[2] : undefined}
+                name={seatNameAt(2)}
               />
               <Seat
                 seat={3}
                 count={botCounts[2]}
                 active={activeSeat === 3}
-                name={multiView ? multiView.seatNames[3] : undefined}
+                name={seatNameAt(3)}
                 className="md:hidden"
               />
             </div>
@@ -710,7 +761,7 @@ export default function DominoPage() {
                 seat={1}
                 count={botCounts[0]}
                 active={activeSeat === 1}
-                name={multiView ? multiView.seatNames[1] : undefined}
+                name={seatNameAt(1)}
                 className="hidden shrink-0 md:flex"
               />
 
@@ -732,7 +783,7 @@ export default function DominoPage() {
                       count={state.hands[0].length}
                       active={myTurn}
                       hideStack
-                      name={multiView ? multiView.seatNames[0] : undefined}
+                      name={seatNameAt(0)}
                       className="mr-1 self-end"
                     />
                     {state.hands[0].map((tile, index) => {
@@ -784,7 +835,7 @@ export default function DominoPage() {
                 seat={3}
                 count={botCounts[2]}
                 active={activeSeat === 3}
-                name={multiView ? multiView.seatNames[3] : undefined}
+                name={seatNameAt(3)}
                 className="hidden shrink-0 md:flex"
               />
             </div>
@@ -813,6 +864,7 @@ export default function DominoPage() {
                     onCreate={handleCreateRoom}
                     onJoin={handleJoinRoom}
                     lobby={lobby}
+                    onConfig={handleConfigRoom}
                     onStart={handleStartRoom}
                     onLeave={handleLeaveRoom}
                     error={lobbyError}
@@ -937,15 +989,27 @@ export default function DominoPage() {
       )}
 
       {/* Diálogos */}
-      <ResultDialog
-        open={!!state && state.phase === 'finished' && !!state.outcome}
-        outcome={state?.outcome ?? null}
-        onReplay={multiView ? handleRematch : startGame}
-        onClose={() => (multiView ? exitMulti() : dispatch({ type: 'RESET' }))}
-        seatNames={multiView ? multiView.seatNames : undefined}
-        replayLabel={multiView ? (multiView.isHost ? '🔁 Revancha' : '⏳ Esperando revancha…') : undefined}
-        replayDisabled={!!multiView && !multiView.isHost}
-      />
+      {multiView?.match ? (
+        <TeamsResultDialog
+          open={!!state && state.phase === 'finished' && !!state.outcome}
+          match={multiView.match}
+          partnerName={partnerSeat !== null ? multiView.seatNames[partnerSeat] : ''}
+          rivalNames={multiView.match.teams[1].map((s) => multiView.seatNames[s])}
+          isHost={multiView.isHost}
+          onNewMatch={handleRematch}
+          onLeave={handleLeaveRoom}
+        />
+      ) : (
+        <ResultDialog
+          open={!!state && state.phase === 'finished' && !!state.outcome}
+          outcome={state?.outcome ?? null}
+          onReplay={multiView ? handleRematch : startGame}
+          onClose={() => (multiView ? exitMulti() : dispatch({ type: 'RESET' }))}
+          seatNames={multiView ? multiView.seatNames : undefined}
+          replayLabel={multiView ? (multiView.isHost ? '🔁 Revancha' : '⏳ Esperando revancha…') : undefined}
+          replayDisabled={!!multiView && !multiView.isHost}
+        />
+      )}
 
       <AlertDialog open={confirmLeave} onOpenChange={setConfirmLeave}>
         <AlertDialogContent className="border-zinc-700 bg-zinc-900">

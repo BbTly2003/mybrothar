@@ -1,16 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Copy, Crown, Loader2, LogOut, Play, Users, Wifi, WifiOff } from 'lucide-react'
+import { Check, Copy, Crown, Handshake, Loader2, LogOut, Play, Settings2, User, Users, Wifi, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { POINT_TARGETS, type RoomConfig, type RoomMode } from '@/lib/game/types'
 
 export interface LobbyState {
   code: string
   players: string[]
   isHost: boolean
   mySeat: number
+  /** configuración elegida por el anfitrión */
+  config: RoomConfig | null
+  /** equipos absolutos [parejaAnfitrión, rivales] si el modo es parejas */
+  teams: number[][] | null
 }
 
 export interface RoomLobbyProps {
@@ -25,18 +30,23 @@ export interface RoomLobbyProps {
   onJoin: () => void
   /** sala ya creada/entrada */
   lobby: LobbyState | null
+  /** cambio de configuración (solo anfitrión; el server lo valida) */
+  onConfig: (patch: { mode?: RoomMode; partnerSeat?: number | null; targetPoints?: number }) => void
   onStart: () => void
   onLeave: () => void
   error: string | null
 }
 
+const SEAT_EMOJI = (i: number) => (i === 0 ? '😎' : i === 1 ? '🐼' : i === 2 ? '🦊' : '🐯')
+
 /**
  * Sala de juego multijugador (WiFi local): crear sala o unirse con código,
- * lista de los 4 asientos y arranque por el anfitrión. Vive sobre el panel
- * de la mesa, sustituyendo a la intro cinematográfica.
+ * lista de los 4 asientos, modo por parejas (compañero + puntos objetivo) y
+ * arranque por el anfitrión. Vive sobre el panel de la mesa, sustituyendo a
+ * la intro cinematográfica.
  */
 export function RoomLobby(props: RoomLobbyProps) {
-  const { screen, connected, busy, name, onNameChange, joinCode, onJoinCodeChange, onCreate, onJoin, lobby, onStart, onLeave, error } = props
+  const { screen, connected, busy, name, onNameChange, joinCode, onJoinCodeChange, onCreate, onJoin, lobby, onConfig, onStart, onLeave, error } = props
   const [copied, setCopied] = useState(false)
 
   const copyCode = async () => {
@@ -50,9 +60,13 @@ export function RoomLobby(props: RoomLobbyProps) {
     }
   }
 
+  const config = lobby?.config ?? null
+  const teams = lobby?.teams ?? null
+  const isTeams = config?.mode === 'teams'
+
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center p-3 sm:p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-black/62 p-4 shadow-2xl backdrop-blur-md sm:p-5">
+      <div className="max-h-full w-full max-w-sm overflow-y-auto rounded-2xl border border-white/10 bg-black/62 p-4 shadow-2xl backdrop-blur-md sm:p-5">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 text-base font-black text-white sm:text-lg">
             <Users className="h-5 w-5 text-emerald-400" aria-hidden />
@@ -74,7 +88,7 @@ export function RoomLobby(props: RoomLobbyProps) {
           <div className="space-y-3">
             <p className="text-xs leading-relaxed text-zinc-400">
               Juega una partida real entre 4 personas en la misma red WiFi: una crea la sala
-              y las demás se unen con el código.
+              y las demás se unen con el código. Elige modo individual o por parejas a puntos.
             </p>
             <div>
               <label htmlFor="lobby-name" className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-zinc-500">
@@ -149,13 +163,14 @@ export function RoomLobby(props: RoomLobbyProps) {
 
                 <ul className="space-y-1.5" aria-label="Jugadores en la sala">
                   {Array.from({ length: 4 }).map((_, i) => {
-                    const name = lobby.players[i]
+                    const playerName = lobby.players[i]
+                    const isPartner = isTeams && teams?.[0]?.includes(i) && i !== lobby.mySeat && teams[0].includes(lobby.mySeat)
                     return (
                       <li
                         key={i}
                         className={cn(
                           'flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm font-bold',
-                          name
+                          playerName
                             ? 'border-white/10 bg-white/5 text-white'
                             : 'border-dashed border-white/10 text-zinc-600',
                         )}
@@ -163,16 +178,21 @@ export function RoomLobby(props: RoomLobbyProps) {
                         <span
                           className={cn(
                             'flex h-7 w-7 items-center justify-center rounded-full text-xs',
-                            name ? 'bg-emerald-400/20 text-emerald-300' : 'bg-white/5',
+                            playerName ? 'bg-emerald-400/20 text-emerald-300' : 'bg-white/5',
                           )}
                           aria-hidden
                         >
-                          {name ? (i === 0 ? '😎' : i === 1 ? '🐼' : i === 2 ? '🦊' : '🐯') : '?'}
+                          {playerName ? SEAT_EMOJI(i) : '?'}
                         </span>
-                        {name ? (
+                        {playerName ? (
                           <>
-                            <span className="min-w-0 truncate">{name}</span>
-                            {i === 0 && (
+                            <span className="min-w-0 truncate">{playerName}</span>
+                            {isPartner && (
+                              <span className="ml-auto flex items-center gap-1 text-[10px] font-black uppercase text-emerald-300">
+                                <Handshake className="h-3.5 w-3.5" aria-hidden /> Compañero
+                              </span>
+                            )}
+                            {i === 0 && !isPartner && (
                               <span className="ml-auto flex items-center gap-1 text-[10px] font-black uppercase text-amber-300">
                                 <Crown className="h-3.5 w-3.5" aria-hidden /> Anfitrión
                               </span>
@@ -185,6 +205,136 @@ export function RoomLobby(props: RoomLobbyProps) {
                     )
                   })}
                 </ul>
+
+                {/* ── Configuración de la partida ── */}
+                {config && (
+                  <section
+                    aria-label="Configuración de la partida"
+                    className="rounded-xl border border-white/10 bg-white/[0.03] p-3"
+                  >
+                    <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-zinc-400">
+                      <Settings2 className="h-3.5 w-3.5" aria-hidden />
+                      Modo de juego
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => lobby.isHost && onConfig({ mode: 'teams' })}
+                        disabled={!lobby.isHost}
+                        aria-pressed={isTeams}
+                        className={cn(
+                          'flex min-h-10 items-center justify-center gap-1.5 rounded-lg border-2 px-2 text-xs font-black transition-colors',
+                          isTeams
+                            ? 'border-emerald-400 bg-emerald-400/15 text-emerald-200'
+                            : 'border-white/10 bg-white/5 text-zinc-400',
+                          lobby.isHost && 'hover:border-emerald-400/50',
+                        )}
+                      >
+                        <Handshake className="h-4 w-4" aria-hidden />
+                        Parejas
+                      </button>
+                      <button
+                        onClick={() => lobby.isHost && onConfig({ mode: 'classic' })}
+                        disabled={!lobby.isHost}
+                        aria-pressed={!isTeams}
+                        className={cn(
+                          'flex min-h-10 items-center justify-center gap-1.5 rounded-lg border-2 px-2 text-xs font-black transition-colors',
+                          !isTeams
+                            ? 'border-emerald-400 bg-emerald-400/15 text-emerald-200'
+                            : 'border-white/10 bg-white/5 text-zinc-400',
+                          lobby.isHost && 'hover:border-emerald-400/50',
+                        )}
+                      >
+                        <User className="h-4 w-4" aria-hidden />
+                        Individual
+                      </button>
+                    </div>
+
+                    {isTeams && (
+                      <div className="mt-3 space-y-3">
+                        {/* compañero (solo anfitrión) */}
+                        {lobby.isHost && (
+                          <div>
+                            <p className="mb-1.5 text-[11px] font-bold text-zinc-400">
+                              Elige a tu compañero — los otros dos serán rivales:
+                            </p>
+                            <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Elegir compañero">
+                              {[1, 2, 3].map((seat) => {
+                                const seatName = lobby.players[seat]
+                                const selected = config.partnerSeat === seat
+                                return (
+                                  <button
+                                    key={seat}
+                                    role="radio"
+                                    aria-checked={selected}
+                                    disabled={!seatName}
+                                    onClick={() => onConfig({ partnerSeat: seat })}
+                                    className={cn(
+                                      'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg border-2 px-1 py-1.5 text-[11px] font-bold transition-colors',
+                                      selected
+                                        ? 'border-emerald-400 bg-emerald-400/15 text-emerald-200'
+                                        : seatName
+                                          ? 'border-white/10 bg-white/5 text-zinc-300 hover:border-emerald-400/50'
+                                          : 'border-dashed border-white/10 text-zinc-600',
+                                    )}
+                                  >
+                                    <span aria-hidden>{seatName ? SEAT_EMOJI(seat) : '?'}</span>
+                                    <span className="w-full truncate text-center">
+                                      {seatName ?? 'Libre'}
+                                    </span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* puntos objetivo */}
+                        <div>
+                          <p className="mb-1.5 text-[11px] font-bold text-zinc-400">
+                            Se juega hasta:
+                          </p>
+                          <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Puntos objetivo">
+                            {POINT_TARGETS.map((t) => (
+                              <button
+                                key={t}
+                                role="radio"
+                                aria-checked={config.targetPoints === t}
+                                disabled={!lobby.isHost}
+                                onClick={() => onConfig({ targetPoints: t })}
+                                className={cn(
+                                  'min-h-9 rounded-lg border-2 text-xs font-black transition-colors',
+                                  config.targetPoints === t
+                                    ? 'border-emerald-400 bg-emerald-400/15 text-emerald-200'
+                                    : 'border-white/10 bg-white/5 text-zinc-400',
+                                  lobby.isHost && 'hover:border-emerald-400/50',
+                                )}
+                              >
+                                {t}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* resumen para invitados */}
+                    {!lobby.isHost && (
+                      <p className="mt-2.5 text-[11px] leading-snug text-zinc-500" role="status">
+                        {isTeams && teams ? (
+                          <>
+                            <strong className="text-zinc-300">Parejas:</strong>{' '}
+                            {teams[0].map((s) => lobby.players[s]).join(' & ')} vs{' '}
+                            {teams[1].map((s) => lobby.players[s]).join(' & ')} · hasta{' '}
+                            <strong className="text-zinc-300">{config.targetPoints}</strong> pts
+                          </>
+                        ) : (
+                          'Individual: cada uno juega por su cuenta, una sola mano.'
+                        )}
+                      </p>
+                    )}
+                  </section>
+                )}
 
                 {lobby.isHost ? (
                   <>
