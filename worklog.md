@@ -535,3 +535,23 @@ Work Log:
 Stage Summary:
 - MODO PAREJAS COMPLETO y verificado: compañero a elección, meta configurable, puntos de fichas fuera de mesa, tranca, rotación de apertura, fin de partido y revancha
 - ZIP portable actualizado en Releases
+
+---
+Task ID: 26
+Agent: main
+Task: Sala multijugador con bots — elegir compañero al crear la sala y rellenar asientos con bots
+
+Work Log:
+- room-service/index.ts: RoomPlayer.kind ('human'|'bot'), BOT_NAME_BY_SEAT (Lola/Max/Kira por asiento), addBot/removeBot, compactRoom (reacomoda asientos y renombra bots), lobby:addBot + lobby:removeBot, auto-relleno de bots en lobby:start, driver scheduleBotMove (850-1800ms, chooseBotMove del engine), guards para bots en broadcast/close/leave, partnerSeat ya acepta asientos vacíos
+- room-lobby.tsx: LobbyState.kinds, botones "Añadir bot" en asientos vacíos (solo anfitrión), bot badge violeta + quitar (X), selector de compañero con asientos libres ("Libre · bot") y bots, Empezar partida siempre activo con aviso de auto-relleno
+- page.tsx: kinds en lobby:state, handleAddBot/handleRemoveBot
+- api/room-service/restart: endpoint que relanza el servicio desligado (el sandbox mata procesos lanzados desde Bash; el dev server sí puede mantenerlos); index.ts ahora tolera recargas de bun --hot (globalThis.__roomHttpServer)
+- E2E socket (21 checks): añadir/quitar/reacomodar bots, sala llena, compañero bot + equipos [[0,1],[2,3]], vista rotada, bots juegan solos (11+ rotaciones), auto-relleno, modo classic sin match — TODO OK
+- E2E partido completo con host autojugado: 6 manos, marcador 53-24, fin en meta 50 ✓
+- Browser vía gateway :81: sala + bots + COMPAÑERO badge + insignia 🤝 en Lola + marcador "Tú & Lola 0 — 0 Max & Kira · a 100 pts" + cadena creciendo sola + jugada humana [1|5] + móvil 375px + 0 errores consola
+- Commit 6ae18d8 → Run #4 SUCCESS → Release latest actualizada (mybrothar.zip)
+
+Stage Summary:
+- LA SALA MULTIJUGADOR ACEPTA BOTS: el anfitrión añade/quita bots por asiento, elige compañero (humano, bot o asiento libre) y arranca aunque falten jugadores (auto-relleno con bots)
+- La Partida Rápida sigue intacta; los equipos, meta de puntos y puntuación de manos no cambiaron
+- Credenciales git restauradas (credential.helper store); .zscripts/ fuera del repo
