@@ -266,10 +266,11 @@ export default function DominoPage() {
     socketRef.current = s
     s.on('connect', () => setSocketConnected(true))
     s.on('disconnect', () => setSocketConnected(false))
-    s.on('lobby:state', (p: { code: string; mySeat: number; isHost: boolean; players: string[]; config?: RoomConfig; teams?: number[][] | null }) => {
+    s.on('lobby:state', (p: { code: string; mySeat: number; isHost: boolean; players: string[]; kinds?: ('human' | 'bot')[]; config?: RoomConfig; teams?: number[][] | null }) => {
       setLobby({
         code: p.code,
         players: p.players,
+        kinds: p.kinds ?? [],
         isHost: p.isHost,
         mySeat: p.mySeat,
         config: p.config ?? null,
@@ -339,6 +340,18 @@ export default function DominoPage() {
     },
     [],
   )
+
+  const handleAddBot = useCallback(() => {
+    socketRef.current?.emit('lobby:addBot', (r: { ok: boolean; error?: string }) => {
+      if (!r.ok) setLobbyError(r.error ?? 'No se pudo añadir el bot.')
+    })
+  }, [])
+
+  const handleRemoveBot = useCallback((seat: number) => {
+    socketRef.current?.emit('lobby:removeBot', { seat }, (r: { ok: boolean; error?: string }) => {
+      if (!r.ok) setLobbyError(r.error ?? 'No se pudo quitar el bot.')
+    })
+  }, [])
 
   const handleLeaveRoom = useCallback(() => {
     exitMulti()
@@ -865,6 +878,8 @@ export default function DominoPage() {
                     onJoin={handleJoinRoom}
                     lobby={lobby}
                     onConfig={handleConfigRoom}
+                    onAddBot={handleAddBot}
+                    onRemoveBot={handleRemoveBot}
                     onStart={handleStartRoom}
                     onLeave={handleLeaveRoom}
                     error={lobbyError}

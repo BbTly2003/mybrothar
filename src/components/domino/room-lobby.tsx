@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Copy, Crown, Handshake, Loader2, LogOut, Play, Settings2, User, Users, Wifi, WifiOff } from 'lucide-react'
+import { Bot, Check, Copy, Crown, Handshake, Loader2, LogOut, Play, Plus, Settings2, User, Users, Wifi, WifiOff, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,8 @@ import { POINT_TARGETS, type RoomConfig, type RoomMode } from '@/lib/game/types'
 export interface LobbyState {
   code: string
   players: string[]
+  /** por asiento: 'bot' = relleno con IA, 'human' = persona real */
+  kinds: ('human' | 'bot')[]
   isHost: boolean
   mySeat: number
   /** configuración elegida por el anfitrión */
@@ -32,6 +34,10 @@ export interface RoomLobbyProps {
   lobby: LobbyState | null
   /** cambio de configuración (solo anfitrión; el server lo valida) */
   onConfig: (patch: { mode?: RoomMode; partnerSeat?: number | null; targetPoints?: number }) => void
+  /** añadir un bot al primer asiento libre (solo anfitrión) */
+  onAddBot: () => void
+  /** quitar el bot de un asiento (solo anfitrión) */
+  onRemoveBot: (seat: number) => void
   onStart: () => void
   onLeave: () => void
   error: string | null
@@ -46,7 +52,7 @@ const SEAT_EMOJI = (i: number) => (i === 0 ? '😎' : i === 1 ? '🐼' : i === 2
  * la intro cinematográfica.
  */
 export function RoomLobby(props: RoomLobbyProps) {
-  const { screen, connected, busy, name, onNameChange, joinCode, onJoinCodeChange, onCreate, onJoin, lobby, onConfig, onStart, onLeave, error } = props
+  const { screen, connected, busy, name, onNameChange, joinCode, onJoinCodeChange, onCreate, onJoin, lobby, onConfig, onAddBot, onRemoveBot, onStart, onLeave, error } = props
   const [copied, setCopied] = useState(false)
 
   const copyCode = async () => {
@@ -164,6 +170,7 @@ export function RoomLobby(props: RoomLobbyProps) {
                 <ul className="space-y-1.5" aria-label="Jugadores en la sala">
                   {Array.from({ length: 4 }).map((_, i) => {
                     const playerName = lobby.players[i]
+                    const kind = lobby.kinds[i] ?? 'human'
                     const isPartner = isTeams && teams?.[0]?.includes(i) && i !== lobby.mySeat && teams[0].includes(lobby.mySeat)
                     return (
                       <li
@@ -178,15 +185,24 @@ export function RoomLobby(props: RoomLobbyProps) {
                         <span
                           className={cn(
                             'flex h-7 w-7 items-center justify-center rounded-full text-xs',
-                            playerName ? 'bg-emerald-400/20 text-emerald-300' : 'bg-white/5',
+                            playerName
+                              ? kind === 'bot'
+                                ? 'bg-violet-400/20 text-violet-300'
+                                : 'bg-emerald-400/20 text-emerald-300'
+                              : 'bg-white/5',
                           )}
                           aria-hidden
                         >
-                          {playerName ? SEAT_EMOJI(i) : '?'}
+                          {playerName ? (kind === 'bot' ? <Bot className="h-4 w-4" /> : SEAT_EMOJI(i)) : '?'}
                         </span>
                         {playerName ? (
                           <>
                             <span className="min-w-0 truncate">{playerName}</span>
+                            {kind === 'bot' && (
+                              <span className="rounded-full bg-violet-400/15 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-violet-300">
+                                Bot
+                              </span>
+                            )}
                             {isPartner && (
                               <span className="ml-auto flex items-center gap-1 text-[10px] font-black uppercase text-emerald-300">
                                 <Handshake className="h-3.5 w-3.5" aria-hidden /> Compañero
@@ -197,7 +213,28 @@ export function RoomLobby(props: RoomLobbyProps) {
                                 <Crown className="h-3.5 w-3.5" aria-hidden /> Anfitrión
                               </span>
                             )}
+                            {kind === 'bot' && lobby.isHost && (
+                              <button
+                                onClick={() => onRemoveBot(i)}
+                                aria-label={`Quitar al bot ${playerName}`}
+                                className={cn(
+                                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-red-500/15 hover:text-red-400',
+                                  !isPartner && 'ml-auto',
+                                )}
+                              >
+                                <X className="h-4 w-4" aria-hidden />
+                              </button>
+                            )}
                           </>
+                        ) : lobby.isHost ? (
+                          <button
+                            onClick={onAddBot}
+                            aria-label={`Añadir bot en el asiento ${i + 1}`}
+                            className="flex w-full items-center justify-center gap-1.5 py-1 text-xs font-black text-violet-300 transition-colors hover:text-violet-200"
+                          >
+                            <Plus className="h-3.5 w-3.5" aria-hidden />
+                            Añadir bot
+                          </button>
                         ) : (
                           <span>Esperando jugador…</span>
                         )}
@@ -261,31 +298,34 @@ export function RoomLobby(props: RoomLobbyProps) {
                             <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Elegir compañero">
                               {[1, 2, 3].map((seat) => {
                                 const seatName = lobby.players[seat]
+                                const seatKind = lobby.kinds[seat] ?? 'human'
                                 const selected = config.partnerSeat === seat
                                 return (
                                   <button
                                     key={seat}
                                     role="radio"
                                     aria-checked={selected}
-                                    disabled={!seatName}
                                     onClick={() => onConfig({ partnerSeat: seat })}
                                     className={cn(
                                       'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg border-2 px-1 py-1.5 text-[11px] font-bold transition-colors',
                                       selected
                                         ? 'border-emerald-400 bg-emerald-400/15 text-emerald-200'
-                                        : seatName
-                                          ? 'border-white/10 bg-white/5 text-zinc-300 hover:border-emerald-400/50'
-                                          : 'border-dashed border-white/10 text-zinc-600',
+                                        : 'border-white/10 bg-white/5 text-zinc-300 hover:border-emerald-400/50',
                                     )}
                                   >
-                                    <span aria-hidden>{seatName ? SEAT_EMOJI(seat) : '?'}</span>
+                                    <span aria-hidden>
+                                      {seatName ? (seatKind === 'bot' ? <Bot className="mx-auto h-3.5 w-3.5" /> : SEAT_EMOJI(seat)) : <Bot className="mx-auto h-3.5 w-3.5 opacity-50" />}
+                                    </span>
                                     <span className="w-full truncate text-center">
-                                      {seatName ?? 'Libre'}
+                                      {seatName ?? 'Libre · bot'}
                                     </span>
                                   </button>
                                 )
                               })}
                             </div>
+                            <p className="mt-1 text-[10px] leading-snug text-zinc-500">
+                              Un asiento libre se rellena con un bot al empezar.
+                            </p>
                           </div>
                         )}
 
@@ -340,7 +380,7 @@ export function RoomLobby(props: RoomLobbyProps) {
                   <>
                     <Button
                       onClick={onStart}
-                      disabled={lobby.players.length < 4 || !connected}
+                      disabled={!connected}
                       className="min-h-11 w-full bg-emerald-600 text-sm font-black hover:bg-emerald-500"
                     >
                       <Play className="h-4 w-4" aria-hidden />
@@ -348,7 +388,7 @@ export function RoomLobby(props: RoomLobbyProps) {
                     </Button>
                     {lobby.players.length < 4 && (
                       <p className="text-center text-[11px] text-zinc-500">
-                        Faltan {4 - lobby.players.length} jugador{4 - lobby.players.length === 1 ? '' : 'es'} para empezar.
+                        Faltan {4 - lobby.players.length} jugador{4 - lobby.players.length === 1 ? '' : 'es'} · los asientos vacíos se llenarán con bots 🤖
                       </p>
                     )}
                   </>
