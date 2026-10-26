@@ -21,13 +21,24 @@ REQUISITOS
 
 JUGAR EN EL MÓVIL
 -----------------
-Este paquete es el SERVIDOR para tu PC; el móvil se conecta a él:
-   1. Arranca el servidor en el PC
-   2. En el PC, pulsa el botón morado "Probar en el móvil" del menú:
-      muestra un QR con la dirección de tu red WiFi
-   3. Escanea el QR con el móvil (mismo WiFi) y en el navegador
-      elige "Añadir a pantalla de inicio": se instala como app
-      (PWA) y ocupa solo ~1-2 MB
+Este paquete es el SERVIDOR para tu PC; el móvil se conecta a él.
+Hay DOS formas:
+
+  A) APP ANDROID (mybrothar.apk, recomendada)
+     1. Descarga "mybrothar.apk" desde Releases de GitHub
+     2. Ábrelo en el móvil y acepta "instalar de origen desconocido"
+     3. Arranca el servidor en el PC y pulsa el botón morado
+        "Probar en el móvil": te muestra la dirección (ej. http://192.168.1.40:3000)
+     4. Abre la app MyBrothar, escribe esa dirección y pulsa Conectar
+        (la app recuerda la dirección para las próximas veces)
+
+  B) PWA SIN INSTALAR NADA
+     1. Arranca el servidor en el PC
+     2. En el PC, pulsa el botón morado "Probar en el móvil" del menú:
+        muestra un QR con la dirección de tu red WiFi
+     3. Escanea el QR con el móvil (mismo WiFi) y en el navegador
+        elige "Añadir a pantalla de inicio": se instala como app
+        (PWA) y ocupa solo ~1-2 MB
 
 CAMBIAR EL PUERTO
 -----------------

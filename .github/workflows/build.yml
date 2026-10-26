@@ -21,6 +21,12 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Instalar JDK 17 (para el APK Android)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Instalar dependencias
         run: bun install --frozen-lockfile
 
@@ -77,11 +83,16 @@ jobs:
           pack macos   "libquery_engine-darwin.dylib.node libquery_engine-darwin-arm64.dylib.node"
           pack windows "query_engine-windows.dll.node"
 
+      - name: Compilar APK Android
+        run: bash scripts/build-apk.sh
+
       - name: Subir artefactos (pestaña Actions)
         uses: actions/upload-artifact@v4
         with:
           name: mybrothar
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*.apk
           retention-days: 30
 
       - name: Publicar Release (enlace permanente)
@@ -91,6 +102,7 @@ jobs:
           gh release delete latest --yes --cleanup-tag || true
           gh release create latest \
             dist/mybrothar-linux.zip dist/mybrothar-windows.zip dist/mybrothar-macos.zip \
+            dist/mybrothar.apk \
             --title "MyBrothar — última versión" \
             --notes-file .github/release-notes.md \
             --latest
