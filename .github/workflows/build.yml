@@ -58,6 +58,14 @@ jobs:
               chmod +x "$PKG/start.sh"
             fi
             chmod +x "$PKG/server.js"
+            # Recortes seguros de runtime (verificados con smoke test de Prisma):
+            # - typescript y sharp/libvips no se usan en producción (sin next/image)
+            rm -rf "$PKG/node_modules/typescript" "$PKG/node_modules/sharp" \
+                   "$PKG/node_modules/@img" "$PKG/node_modules/detect-libc"
+            # - Prisma runtime: conservar SOLO library.js; los WASM-base64 de otras
+            #   bases de datos (postgres, mysql,…) pesan ~50M por copia y hay 2 copias
+            find "$PKG/node_modules/@prisma/client/runtime" -type f ! -name 'library.js' -delete 2>/dev/null || true
+            find "$PKG"/.next/node_modules/@prisma/client-*/runtime -type f ! -name 'library.js' -delete 2>/dev/null || true
             # sin sourcemaps ni ficheros residuales
             find "$PKG" -type f -name '*.map' -delete
             rm -f "$PKG/db/custom.db-journal"
