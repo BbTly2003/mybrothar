@@ -555,3 +555,22 @@ Stage Summary:
 - LA SALA MULTIJUGADOR ACEPTA BOTS: el anfitrión añade/quita bots por asiento, elige compañero (humano, bot o asiento libre) y arranca aunque falten jugadores (auto-relleno con bots)
 - La Partida Rápida sigue intacta; los equipos, meta de puntos y puntuación de manos no cambiaron
 - Credenciales git restauradas (credential.helper store); .zscripts/ fuera del repo
+
+---
+Task ID: 27
+Agent: main
+Task: Optimizar el espacio de la descarga (el ZIP pesaba 111MB, app para móvil)
+
+Work Log:
+- Diagnóstico: el ZIP único incluía los 4 engines de Prisma (78M, uno por SO) + typescript 20M + sharp/@img (libvips) 33M + runtime WASM-base64 de Prisma para TODAS las BD (~50M) DUPLICADO en node_modules y .next/node_modules
+- build.yml reescrito: pack() por plataforma (linux/macos/windows), cada ZIP solo con SU engine; borrado de query_engine_bg.* (ojo: patrón query_engine* con guion bajo, no query_engine-*)
+- Recortes validados localmente con el artifact de CI: runtime de @prisma/client reducido a library.js (index.js solo exige runtime/library.js; el snapshot client-<hash> de .next/node_modules SÍ es referenciado por chunks, se recorta sin borrar)
+- Smoke test real: node server.js del paquete recortado → home 200, /api/profile responde y Prisma ejecuta queries (bun + node v24)
+- GitHub Actions: recreación del release latest (--cleanup-tag) para purgar el asset viejo de 111MB; notas (.github/release-notes.md) con tabla de qué ZIP descargar + aviso móvil=PWA
+- LEEME.txt con sección "JUGAR EN EL MÓVIL"; README actualizado; .gitignore: typo db/*.db-journal.zscripts/ → db/*.db-journal + .zscripts/ (por eso volvía dev.pid); git rm --cached .zscripts/dev.pid
+
+Stage Summary:
+- DESCARGA REDUCIDA DE 111MB → 12.3MB (linux), 12.8MB (windows), 22.9MB (macos) = −89%
+- 3 ZIPs por plataforma con solo su engine; paquete verificado con servidor real y queries Prisma
+- El móvil NO usa ZIP: PWA (~1-2MB) vía QR del menú; release y docs lo dejan claro
+- Push 7ffc859 → Run SUCCESS → Release latest con 3 assets
