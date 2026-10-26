@@ -574,3 +574,22 @@ Stage Summary:
 - 3 ZIPs por plataforma con solo su engine; paquete verificado con servidor real y queries Prisma
 - El móvil NO usa ZIP: PWA (~1-2MB) vía QR del menú; release y docs lo dejan claro
 - Push 7ffc859 → Run SUCCESS → Release latest con 3 assets
+
+---
+Task ID: 28
+Agent: main
+Task: Instalador de móvil — .apk de MyBrothar
+
+Work Log:
+- android/app/src/main: AndroidManifest.xml (package com.mybrothar.app, minSdk 24, targetSdk 34, INTERNET + usesCleartextTraffic, tema Material dark, icono = icon-512.png)
+- MainActivity.java (sin dependencias): WebView fullscreen (JS/DOM storage, media sin gesto, keep-screen-on, barra de estado morada oscura), pantalla "Conectar" con la dirección del PC (guardada en SharedPreferences, precargada la siguiente vez), pantalla de error con Reintentar/Cambiar dirección, botón atrás navega el historial, estado guardado en rotación
+- scripts/build-apk.sh: build SIN Gradle con build-tools del runner (aapt2 compile/link → javac --release 11 → d8 --min-api 24 → zip classes.dex → zipalign -p 4 → keystore debug al vuelo → apksigner sign + verify); detecta e instala SDK si falta
+- build.yml: step JDK 17 (temurin), step "Compilar APK Android", artifact incluye dist/*.apk, release latest añade mybrothar.apk
+- Docs: release-notes.md con sección APK (origen desconocido, Play Protect), LEEME.txt opción A) APK / B) PWA, README actualizado
+- Validación: Run SUCCESS; APK en Release pesa 0.11MB; unzip -l confirma AndroidManifest, res/drawable/ic_launcher.png, resources.arsc, classes.dex (9.4KB) y firma META-INF/ANDROIDD.SF+RSA; apksigner verify pasó dentro del CI
+
+Stage Summary:
+- MYBROTHAR AHORA TIENE .APK: mybrothar.apk (~110KB) instalable en Android, se conecta al servidor del PC por WiFi pidiendo la dirección una sola vez
+- El APK es cliente (no lleva servidor Node dentro; eso es imposible en Android); el servidor sigue siendo el ZIP del PC o la PWA
+- Build reproducible en CI sin Gradle ni Android Studio: aapt2+d8+apksigner con las build-tools del runner
+- Push 43ce89a → Run SUCCESS → Release latest con 4 assets (3 ZIPs + APK)
