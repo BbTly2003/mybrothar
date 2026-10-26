@@ -3,47 +3,33 @@
       (tú + 3 bots: Lola, Max y Kira)
 ============================================================
 
-CÓMO JUGAR
-----------
-Linux / Mac:
-   1. Abre una terminal dentro de esta carpeta
-   2. Ejecuta:  ./start.sh
+ARRANCAR EL SERVIDOR (PC)
+-------------------------
+1. Instala Node.js (https://nodejs.org) y Bun (https://bun.sh)
+2. En esta carpeta:
+      bun install
+      bun run dev
+3. Abre en tu navegador:   http://localhost:3000
 
-Windows:
-   1. Doble clic en:  start.bat
-
-Después abre en tu navegador:   http://localhost:3000
-
-REQUISITOS
-----------
-- Tener Node.js instalado (descárgalo en https://nodejs.org)
-- El puerto 3000 libre (o cámbialo, ver abajo)
+Puerto distinto:   PORT=8080 bun run dev
 
 JUGAR EN EL MÓVIL
 -----------------
-Este paquete es el SERVIDOR para tu PC; el móvil se conecta a él.
-Hay DOS formas:
+El móvil se conecta al servidor del PC (misma WiFi):
 
   A) APP ANDROID (mybrothar.apk, recomendada)
      1. Descarga "mybrothar.apk" desde Releases de GitHub
      2. Ábrelo en el móvil y acepta "instalar de origen desconocido"
-     3. Arranca el servidor en el PC y pulsa el botón morado
-        "Probar en el móvil": te muestra la dirección (ej. http://192.168.1.40:3000)
+     3. Pulsa el botón morado "Probar en el móvil" del menú:
+        te muestra la dirección (ej. http://192.168.1.40:3000)
      4. Abre la app MyBrothar, escribe esa dirección y pulsa Conectar
         (la app recuerda la dirección para las próximas veces)
 
   B) PWA SIN INSTALAR NADA
-     1. Arranca el servidor en el PC
-     2. En el PC, pulsa el botón morado "Probar en el móvil" del menú:
+     1. En el PC, pulsa el botón morado "Probar en el móvil":
         muestra un QR con la dirección de tu red WiFi
-     3. Escanea el QR con el móvil (mismo WiFi) y en el navegador
-        elige "Añadir a pantalla de inicio": se instala como app
-        (PWA) y ocupa solo ~1-2 MB
-
-CAMBIAR EL PUERTO
------------------
-Linux / Mac:   PORT=8080 ./start.sh
-Windows:       set PORT=8080  y luego  start.bat
+     2. Escanea el QR con el móvil y en el navegador elige
+        "Añadir a pantalla de inicio"
 
 TU PROGRESO
 -----------
@@ -53,9 +39,7 @@ tu progreso.
 
 SOLUCIÓN DE PROBLEMAS
 ---------------------
-- " Puerto en uso ": cambia el puerto (ver arriba).
-- " node no se reconoce ": instala Node.js y reinicia.
-- Si el juego no carga, espera unos segundos y recarga:
-  el primer arranque compila un poco más lento.
+- " Puerto en uso ": usa otro puerto (ver arriba).
+- El juego no carga: espera unos segundos y recarga.
 
 ¡A jugar! 🎲

@@ -9,90 +9,27 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Compilar y empaquetar
+  apk:
+    name: Compilar APK Android
     runs-on: ubuntu-latest
     steps:
       - name: Descargar código
         uses: actions/checkout@v4
 
-      - name: Instalar Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Instalar JDK 17 (para el APK Android)
+      - name: Instalar JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Instalar dependencias
-        run: bun install --frozen-lockfile
-
-      - name: Preparar base de datos
-        run: |
-          bunx prisma generate
-          DATABASE_URL="file:$GITHUB_WORKSPACE/db/custom.db" bunx prisma db push --skip-generate
-
-      - name: Compilar Next.js (standalone)
-        run: DATABASE_URL="file:$GITHUB_WORKSPACE/db/custom.db" bun run build
-
-      - name: Empaquetar portable por plataforma (solo su motor Prisma)
-        run: |
-          set -e
-          CLIENT=node_modules/.prisma/client
-          mkdir -p dist
-          pack () {
-            OS="$1"; KEEP="$2"
-            PKG="mybrothar-$OS"
-            mkdir -p "$PKG/db"
-            cp -a .next/standalone/. "$PKG/"
-            # Next standalone no traza todos los engines de Prisma: copiar el cliente…
-            mkdir -p "$PKG/node_modules/.prisma"
-            cp -a "$CLIENT" "$PKG/node_modules/.prisma/"
-            # …pero conservar SOLO los motores de esta plataforma (ahorra ~60 MB)
-            rm -f "$PKG"/node_modules/.prisma/client/libquery_engine-* \
-                  "$PKG"/node_modules/.prisma/client/query_engine*
-            for f in $KEEP; do cp "$CLIENT/$f" "$PKG/node_modules/.prisma/client/"; done
-            cp db/custom.db "$PKG/db/"
-            cp LEEME.txt "$PKG/"
-            if [ "$OS" = "windows" ]; then
-              cp scripts/start.bat "$PKG/"
-            else
-              cp scripts/start.sh "$PKG/"
-              chmod +x "$PKG/start.sh"
-            fi
-            chmod +x "$PKG/server.js"
-            # Recortes seguros de runtime (verificados con smoke test de Prisma):
-            # - typescript y sharp/libvips no se usan en producción (sin next/image)
-            rm -rf "$PKG/node_modules/typescript" "$PKG/node_modules/sharp" \
-                   "$PKG/node_modules/@img" "$PKG/node_modules/detect-libc"
-            # - Prisma runtime: conservar SOLO library.js; los WASM-base64 de otras
-            #   bases de datos (postgres, mysql,…) pesan ~50M por copia y hay 2 copias
-            find "$PKG/node_modules/@prisma/client/runtime" -type f ! -name 'library.js' -delete 2>/dev/null || true
-            find "$PKG"/.next/node_modules/@prisma/client-*/runtime -type f ! -name 'library.js' -delete 2>/dev/null || true
-            # sin sourcemaps ni ficheros residuales
-            find "$PKG" -type f -name '*.map' -delete
-            rm -f "$PKG/db/custom.db-journal"
-            zip -rq -9 "dist/mybrothar-$OS.zip" "$PKG"
-            rm -rf "$PKG"
-            echo "mybrothar-$OS.zip -> $(du -h "dist/mybrothar-$OS.zip" | cut -f1)"
-          }
-          pack linux   "libquery_engine-debian-openssl-3.0.x.so.node"
-          pack macos   "libquery_engine-darwin.dylib.node libquery_engine-darwin-arm64.dylib.node"
-          pack windows "query_engine-windows.dll.node"
-
-      - name: Compilar APK Android
+      - name: Compilar APK (aapt2 + d8 + apksigner)
         run: bash scripts/build-apk.sh
 
-      - name: Subir artefactos (pestaña Actions)
+      - name: Subir artefacto (pestaña Actions)
         uses: actions/upload-artifact@v4
         with:
-          name: mybrothar
-          path: |
-            dist/*.zip
-            dist/*.apk
+          name: mybrothar-apk
+          path: dist/mybrothar.apk
           retention-days: 30
 
       - name: Publicar Release (enlace permanente)
@@ -100,9 +37,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest \
-            dist/mybrothar-linux.zip dist/mybrothar-windows.zip dist/mybrothar-macos.zip \
-            dist/mybrothar.apk \
+          gh release create latest dist/mybrothar.apk \
             --title "MyBrothar — última versión" \
             --notes-file .github/release-notes.md \
             --latest
