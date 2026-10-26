@@ -32,38 +32,57 @@ jobs:
       - name: Compilar Next.js (standalone)
         run: DATABASE_URL="file:$GITHUB_WORKSPACE/db/custom.db" bun run build
 
-      - name: Empaquetar aplicación portable
+      - name: Empaquetar portable por plataforma (solo su motor Prisma)
         run: |
-          PKG=mybrothar
-          mkdir -p "$PKG/db"
-          cp -a .next/standalone/. "$PKG/"
-          # Next standalone no traza todos los engines de Prisma: copiar el cliente completo
-          mkdir -p "$PKG/node_modules/.prisma"
-          cp -a node_modules/.prisma/client "$PKG/node_modules/.prisma/"
-          cp db/custom.db "$PKG/db/"
-          cp scripts/start.sh scripts/start.bat "$PKG/"
-          cp LEEME.txt "$PKG/"
-          chmod +x "$PKG/start.sh" "$PKG/server.js"
-          zip -rq mybrothar.zip "$PKG"
-          echo "Tamaño del paquete: $(du -sh mybrothar.zip | cut -f1)"
+          set -e
+          CLIENT=node_modules/.prisma/client
+          mkdir -p dist
+          pack () {
+            OS="$1"; KEEP="$2"
+            PKG="mybrothar-$OS"
+            mkdir -p "$PKG/db"
+            cp -a .next/standalone/. "$PKG/"
+            # Next standalone no traza todos los engines de Prisma: copiar el cliente…
+            mkdir -p "$PKG/node_modules/.prisma"
+            cp -a "$CLIENT" "$PKG/node_modules/.prisma/"
+            # …pero conservar SOLO los motores de esta plataforma (ahorra ~60 MB)
+            rm -f "$PKG"/node_modules/.prisma/client/libquery_engine-* \
+                  "$PKG"/node_modules/.prisma/client/query_engine*
+            for f in $KEEP; do cp "$CLIENT/$f" "$PKG/node_modules/.prisma/client/"; done
+            cp db/custom.db "$PKG/db/"
+            cp LEEME.txt "$PKG/"
+            if [ "$OS" = "windows" ]; then
+              cp scripts/start.bat "$PKG/"
+            else
+              cp scripts/start.sh "$PKG/"
+              chmod +x "$PKG/start.sh"
+            fi
+            chmod +x "$PKG/server.js"
+            # sin sourcemaps ni ficheros residuales
+            find "$PKG" -type f -name '*.map' -delete
+            rm -f "$PKG/db/custom.db-journal"
+            zip -rq -9 "dist/mybrothar-$OS.zip" "$PKG"
+            rm -rf "$PKG"
+            echo "mybrothar-$OS.zip -> $(du -h "dist/mybrothar-$OS.zip" | cut -f1)"
+          }
+          pack linux   "libquery_engine-debian-openssl-3.0.x.so.node"
+          pack macos   "libquery_engine-darwin.dylib.node libquery_engine-darwin-arm64.dylib.node"
+          pack windows "query_engine-windows.dll.node"
 
-      - name: Subir artefacto (pestaña Actions)
+      - name: Subir artefactos (pestaña Actions)
         uses: actions/upload-artifact@v4
         with:
           name: mybrothar
-          path: mybrothar.zip
+          path: dist/*.zip
           retention-days: 30
 
       - name: Publicar Release (enlace permanente)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create latest mybrothar.zip \
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest \
+            dist/mybrothar-linux.zip dist/mybrothar-windows.zip dist/mybrothar-macos.zip \
             --title "MyBrothar — última versión" \
-            --notes "🎲 Descarga **mybrothar.zip**, descomprímelo y ejecuta:
-          - **Linux/Mac:** \`./start.sh\`
-          - **Windows:** doble clic en \`start.bat\`
-
-          Luego abre http://localhost:3000 en tu navegador. Requiere Node.js." \
-            --latest \
-          || gh release upload latest mybrothar.zip --clobber
+            --notes-file .github/release-notes.md \
+            --latest

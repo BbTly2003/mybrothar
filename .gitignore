@@ -58,4 +58,5 @@ tool-results/
 
 # local sqlite database (run: bun run db:push to recreate)
 db/*.db
-db/*.db-journal.zscripts/
+db/*.db-journal
+.zscripts/

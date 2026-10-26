@@ -19,6 +19,16 @@ REQUISITOS
 - Tener Node.js instalado (descárgalo en https://nodejs.org)
 - El puerto 3000 libre (o cámbialo, ver abajo)
 
+JUGAR EN EL MÓVIL
+-----------------
+Este paquete es el SERVIDOR para tu PC; el móvil se conecta a él:
+   1. Arranca el servidor en el PC
+   2. En el PC, pulsa el botón morado "Probar en el móvil" del menú:
+      muestra un QR con la dirección de tu red WiFi
+   3. Escanea el QR con el móvil (mismo WiFi) y en el navegador
+      elige "Añadir a pantalla de inicio": se instala como app
+      (PWA) y ocupa solo ~1-2 MB
+
 CAMBIAR EL PUERTO
 -----------------
 Linux / Mac:   PORT=8080 ./start.sh
